@@ -1,0 +1,229 @@
+<title>Galerie eMarket-Palace</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* Layout: en-tête fixe + filtres par catégorie + grille de boutiques -> détail boutique en grille de produits */
+:root{
+  --bg:#f7f5f1; --surface:#ffffff; --ink:#1c1a17; --muted:#6b645c;
+  --accent:#1f7a5c; --accent-ink:#ffffff; --border:#e4ddd3; --danger:#b3432f;
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#15130f; --surface:#211e19; --ink:#f2eee6; --muted:#a69d8f;
+    --accent:#3fae84; --accent-ink:#0b1410; --border:#352f27; --danger:#e2715c;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#15130f; --surface:#211e19; --ink:#f2eee6; --muted:#a69d8f;
+  --accent:#3fae84; --accent-ink:#0b1410; --border:#352f27; --danger:#e2715c;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{
+  background:var(--bg); color:var(--ink); margin:0;
+  font-family:"Inter",system-ui,-apple-system,sans-serif;
+  padding-left:max(16px, env(safe-area-inset-left,0px));
+  padding-right:max(16px, env(safe-area-inset-right,0px));
+}
+.wrap{max-width:760px; margin:0 auto; padding-block:24px 56px; display:flex; flex-direction:column; gap:18px}
+header h1{font-family:"Space Grotesk",system-ui,sans-serif; font-size:1.4rem; margin:0}
+header .sub{color:var(--muted); font-size:.88rem; margin-top:2px}
+.filters{display:flex; gap:8px; overflow-x:auto; padding-bottom:4px}
+.filters::-webkit-scrollbar{display:none}
+.chip{
+  flex:none; font-size:.82rem; padding:7px 14px; border-radius:999px; border:1px solid var(--border);
+  background:var(--surface); color:var(--muted); cursor:pointer; white-space:nowrap;
+}
+.chip.active{background:var(--accent); color:var(--accent-ink); border-color:var(--accent)}
+.grid{display:grid; grid-template-columns:repeat(auto-fill, minmax(220px,1fr)); gap:14px}
+.store-card{
+  background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:16px;
+  display:flex; flex-direction:column; gap:8px; cursor:pointer; text-align:left;
+}
+.store-card .badge{
+  width:40px; height:40px; border-radius:10px; background:var(--accent); color:var(--accent-ink);
+  display:flex; align-items:center; justify-content:center; font-weight:700; font-size:1.1rem;
+}
+.store-card h3{margin:0; font-size:1rem}
+.store-card .cat{font-size:.78rem; color:var(--accent); font-weight:600}
+.store-card .desc{font-size:.85rem; color:var(--muted); min-width:0}
+.empty{
+  border:1px dashed var(--border); border-radius:14px; padding:32px 20px; text-align:center;
+  color:var(--muted); font-size:.92rem; display:flex; flex-direction:column; gap:8px; align-items:center;
+}
+.back{
+  display:inline-flex; align-items:center; gap:6px; font-size:.85rem; color:var(--muted);
+  background:none; border:none; cursor:pointer; padding:0; width:fit-content;
+}
+.detail-head{display:flex; gap:14px; align-items:center}
+.detail-head .badge{width:56px;height:56px; border-radius:14px; font-size:1.5rem}
+.detail-head h2{margin:0; font-size:1.25rem}
+.detail-head .cat{font-size:.82rem; color:var(--accent); font-weight:600}
+.detail-desc{color:var(--muted); font-size:.9rem}
+.product-card{
+  background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:14px;
+  display:flex; flex-direction:column; gap:6px;
+}
+.product-card .name{font-weight:600; font-size:.95rem; min-width:0}
+.product-card .price{font-family:"Space Grotesk",system-ui,sans-serif; font-size:1.05rem; font-variant-numeric:tabular-nums}
+.product-card .pdesc{font-size:.82rem; color:var(--muted)}
+.loading{color:var(--muted); font-size:.88rem; text-align:center; padding:24px}
+.hidden{display:none!important}
+footer{font-size:.78rem; color:var(--muted); text-align:center; margin-top:8px}
+</style>
+
+<div class="wrap">
+  <header id="view-header">
+    <h1>eMarket-Palace</h1>
+    <div class="sub" id="header-sub">La galerie virtuelle — visite les boutiques, découvre les produits.</div>
+  </header>
+
+  <div id="view-stores">
+    <div class="filters" id="filters"></div>
+    <div id="stores-area"><div class="loading">Chargement des boutiques...</div></div>
+  </div>
+
+  <div id="view-detail" class="hidden">
+    <button class="back" id="btn-back">&larr; Retour à la galerie</button>
+    <div class="detail-head">
+      <div class="badge" id="detail-badge">?</div>
+      <div>
+        <h2 id="detail-name"></h2>
+        <div class="cat" id="detail-cat"></div>
+      </div>
+    </div>
+    <div class="detail-desc" id="detail-desc"></div>
+    <div class="grid" id="products-area" style="margin-top:8px"><div class="loading">Chargement des produits...</div></div>
+  </div>
+
+  <footer>eMarket-Palace &middot; connecté à la base de données en direct</footer>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script>
+(function(){
+  "use strict";
+  var SUPABASE_URL = "https://dnwfbnhvxnoyosjuzxxs.supabase.co";
+  var SUPABASE_KEY = "sb_publishable_oWWjQGlbhIl7FGsB5cK75w_PlNeDmpf";
+  var client = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+  var viewStores = document.getElementById("view-stores");
+  var viewDetail = document.getElementById("view-detail");
+  var storesArea = document.getElementById("stores-area");
+  var productsArea = document.getElementById("products-area");
+  var filtersEl = document.getElementById("filters");
+  var headerSub = document.getElementById("header-sub");
+
+  var allStores = [];
+  var activeCategory = "Toutes";
+
+  function initial(name){
+    return (name || "?").trim().charAt(0).toUpperCase();
+  }
+
+  function escapeHtml(s){
+    return String(s == null ? "" : s).replace(/[&<>"']/g, function(c){
+      return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];
+    });
+  }
+
+  function renderFilters(){
+    var cats = ["Toutes"];
+    allStores.forEach(function(s){ if (cats.indexOf(s.category) === -1) cats.push(s.category); });
+    filtersEl.innerHTML = "";
+    cats.forEach(function(c){
+      var chip = document.createElement("button");
+      chip.className = "chip" + (c === activeCategory ? " active" : "");
+      chip.textContent = c;
+      chip.addEventListener("click", function(){
+        activeCategory = c;
+        renderFilters();
+        renderStores();
+      });
+      filtersEl.appendChild(chip);
+    });
+  }
+
+  function renderStores(){
+    var list = activeCategory === "Toutes" ? allStores : allStores.filter(function(s){ return s.category === activeCategory; });
+    if (list.length === 0){
+      storesArea.innerHTML = '<div class="empty">' +
+        '<div>Aucune boutique pour l\'instant dans cette catégorie.</div>' +
+        '<div>Les commerçants qui s\'inscrivent apparaîtront ici dès que leur vitrine est créée.</div>' +
+        '</div>';
+      return;
+    }
+    var grid = document.createElement("div");
+    grid.className = "grid";
+    list.forEach(function(s){
+      var card = document.createElement("button");
+      card.className = "store-card";
+      card.innerHTML =
+        '<div class="badge">' + escapeHtml(initial(s.store_name)) + '</div>' +
+        '<h3>' + escapeHtml(s.store_name) + '</h3>' +
+        '<div class="cat">' + escapeHtml(s.category) + '</div>' +
+        '<div class="desc">' + escapeHtml(s.description || "Pas de description pour l'instant.") + '</div>';
+      card.addEventListener("click", function(){ openStore(s); });
+      grid.appendChild(card);
+    });
+    storesArea.innerHTML = "";
+    storesArea.appendChild(grid);
+  }
+
+  function loadStores(){
+    client.from("stores").select("*").order("created_at", { ascending: false })
+      .then(function(res){
+        if (res.error) throw res.error;
+        allStores = res.data || [];
+        headerSub.textContent = allStores.length + (allStores.length > 1 ? " boutiques ouvertes" : " boutique ouverte") + " dans la galerie.";
+        renderFilters();
+        renderStores();
+      })
+      .catch(function(err){
+        storesArea.innerHTML = '<div class="empty">Impossible de charger les boutiques : ' + escapeHtml(err.message || err) + '</div>';
+      });
+  }
+
+  function openStore(store){
+    viewStores.classList.add("hidden");
+    viewDetail.classList.remove("hidden");
+    document.getElementById("detail-badge").textContent = initial(store.store_name);
+    document.getElementById("detail-name").textContent = store.store_name;
+    document.getElementById("detail-cat").textContent = store.category;
+    document.getElementById("detail-desc").textContent = store.description || "";
+    productsArea.innerHTML = '<div class="loading">Chargement des produits...</div>';
+
+    client.from("products").select("*").eq("store_id", store.id).eq("is_active", true)
+      .then(function(res){
+        if (res.error) throw res.error;
+        var products = res.data || [];
+        if (products.length === 0){
+          productsArea.innerHTML = '<div class="empty">Cette boutique n\'a pas encore ajouté de produits.</div>';
+          return;
+        }
+        productsArea.innerHTML = "";
+        products.forEach(function(p){
+          var card = document.createElement("div");
+          card.className = "product-card";
+          var price = Number(p.price);
+          card.innerHTML =
+            '<div class="name">' + escapeHtml(p.title) + '</div>' +
+            '<div class="price">' + (isNaN(price) ? "" : price.toLocaleString("fr-FR") + " $") + '</div>' +
+            '<div class="pdesc">' + escapeHtml(p.description || "") + '</div>';
+          productsArea.appendChild(card);
+        });
+      })
+      .catch(function(err){
+        productsArea.innerHTML = '<div class="empty">Impossible de charger les produits : ' + escapeHtml(err.message || err) + '</div>';
+      });
+  }
+
+  document.getElementById("btn-back").addEventListener("click", function(){
+    viewDetail.classList.add("hidden");
+    viewStores.classList.remove("hidden");
+  });
+
+  loadStores();
+})();
+</script>

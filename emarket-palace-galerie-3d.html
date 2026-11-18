@@ -1,0 +1,803 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>eMarket-Palace — Galerie 3D</title>
+<style>
+  html,body{margin:0;padding:0;overflow:hidden;background:#0c0b09;font-family:"Inter",system-ui,-apple-system,sans-serif;color:#f2eee6}
+  #canvas-wrap{position:fixed;inset:0}
+  canvas{display:block;touch-action:none}
+
+  #hud{position:fixed;top:0;left:0;right:0;padding:16px 18px;display:flex;justify-content:space-between;align-items:flex-start;pointer-events:none;z-index:10}
+  #hud h1{font-family:"Space Grotesk",system-ui,sans-serif;font-size:1.05rem;margin:0;text-shadow:0 2px 8px rgba(0,0,0,.6)}
+  #hud .sub{font-size:.78rem;color:#cfc8ba;margin-top:2px;text-shadow:0 2px 8px rgba(0,0,0,.6)}
+  #loading{position:fixed;inset:0;background:#0c0b09;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;z-index:40;transition:opacity .4s}
+  #loading .spin{width:30px;height:30px;border-radius:50%;border:3px solid #352f27;border-top-color:#3fae84;animation:spin 1s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  #loading .txt{font-size:.85rem;color:#a69d8f}
+
+  #hint{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);font-size:.76rem;color:#cfc8ba;background:rgba(20,18,15,.55);padding:7px 14px;border-radius:999px;backdrop-filter:blur(6px);z-index:10;pointer-events:none;white-space:nowrap;text-align:center}
+  @media (max-width:640px){ #hint{ display:none } }
+
+  /* ---- panneau boutique ---- */
+  #panel{
+    position:fixed;right:0;top:0;bottom:0;width:min(400px,92vw);
+    background:#1a1814;border-left:1px solid #352f27;
+    transform:translateX(100%);transition:transform .35s ease;
+    display:flex;flex-direction:column;z-index:25;
+  }
+  #panel.open{transform:translateX(0)}
+  #panel-head{padding:18px;border-bottom:1px solid #352f27;display:flex;gap:12px;align-items:center}
+  #panel-head .badge{width:44px;height:44px;border-radius:10px;background:#3fae84;color:#0b1410;display:flex;align-items:center;justify-content:center;font-weight:700;flex:none}
+  #panel-head h2{margin:0;font-size:1.02rem}
+  #panel-head .cat{font-size:.78rem;color:#3fae84;font-weight:600;margin-top:2px}
+  #panel-close{margin-left:auto;background:none;border:none;color:#a69d8f;font-size:1.3rem;cursor:pointer;line-height:1;padding:4px}
+  #panel-desc{padding:14px 18px 0;font-size:.85rem;color:#a69d8f}
+  #panel-products{flex:1;overflow-y:auto;padding:14px 18px 24px;display:flex;flex-direction:column;gap:10px}
+  .pcard{background:#211e19;border:1px solid #352f27;border-radius:12px;padding:12px;display:flex;justify-content:space-between;align-items:center;gap:10px}
+  .pcard .info{min-width:0}
+  .pcard .name{font-weight:600;font-size:.9rem}
+  .pcard .price{font-family:"Space Grotesk",system-ui,sans-serif;color:#3fae84;font-size:.95rem;margin-top:2px}
+  .pcard .d{font-size:.78rem;color:#a69d8f;margin-top:4px}
+  .addbtn{flex:none;background:#3fae84;color:#0b1410;border:none;border-radius:9px;padding:8px 12px;font-weight:700;font-size:.85rem;cursor:pointer}
+  .addbtn:active{transform:scale(.96)}
+  .empty{color:#a69d8f;font-size:.85rem;padding:20px 0;text-align:center}
+
+  /* ---- filtres ---- */
+  #filters{position:fixed;top:60px;left:18px;display:flex;flex-direction:column;gap:6px;z-index:10;max-width:160px}
+  .chip{
+    font-size:.76rem;padding:6px 12px;border-radius:999px;border:1px solid #352f27;
+    background:rgba(26,24,20,.7);color:#cfc8ba;cursor:pointer;backdrop-filter:blur(6px);
+    text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;pointer-events:auto;
+  }
+  .chip.active{background:#3fae84;color:#0b1410;border-color:#3fae84}
+
+  #empty-gallery{
+    position:fixed;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;
+    gap:10px;text-align:center;padding:24px;z-index:25;background:rgba(12,11,9,.85)
+  }
+  #empty-gallery .t{font-size:.95rem;color:#f2eee6}
+  #empty-gallery .s{font-size:.82rem;color:#a69d8f;max-width:320px}
+
+  /* ---- panier flottant ---- */
+  #cart-btn{
+    position:fixed;bottom:18px;right:18px;z-index:21;background:#3fae84;color:#0b1410;
+    border:none;border-radius:999px;padding:12px 18px;font-weight:700;font-size:.88rem;cursor:pointer;
+    box-shadow:0 6px 18px rgba(0,0,0,.4);display:flex;align-items:center;gap:8px;
+  }
+  #cart-btn .count{background:#0b1410;color:#3fae84;border-radius:999px;min-width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:.75rem;padding:0 5px}
+
+  #cart-panel{
+    position:fixed;left:0;right:0;bottom:0;max-height:78vh;background:#1a1814;border-top:1px solid #352f27;
+    border-radius:18px 18px 0 0;transform:translateY(100%);transition:transform .35s ease;z-index:30;
+    display:flex;flex-direction:column;
+  }
+  #cart-panel.open{transform:translateY(0)}
+  #cart-head{padding:16px 18px;border-bottom:1px solid #352f27;display:flex;align-items:center;gap:10px}
+  #cart-head h2{margin:0;font-size:1rem;flex:1}
+  #cart-close{background:none;border:none;color:#a69d8f;font-size:1.3rem;cursor:pointer;line-height:1;padding:4px}
+  #cart-items{flex:1;overflow-y:auto;padding:12px 18px;display:flex;flex-direction:column;gap:10px;max-height:40vh}
+  .citem{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #2a2520}
+  .citem .n{font-size:.88rem;font-weight:600}
+  .citem .s{font-size:.76rem;color:#a69d8f}
+  .qty{display:flex;align-items:center;gap:8px}
+  .qty button{width:26px;height:26px;border-radius:7px;border:1px solid #352f27;background:#211e19;color:#f2eee6;cursor:pointer;font-size:.9rem}
+  .rm{background:none;border:none;color:#b3432f;font-size:.76rem;cursor:pointer}
+
+  #checkout-area{padding:14px 18px 20px;border-top:1px solid #352f27;display:flex;flex-direction:column;gap:10px}
+  #checkout-area label{font-size:.8rem;font-weight:600;display:flex;flex-direction:column;gap:5px}
+  #checkout-area select,#checkout-area input{font:inherit;font-size:.92rem;padding:9px 11px;border-radius:9px;border:1px solid #352f27;background:#211e19;color:#f2eee6}
+  #total-line{display:flex;justify-content:space-between;font-size:.95rem;font-weight:700}
+  #checkout-btn{font:inherit;font-weight:700;font-size:.92rem;padding:12px 16px;border-radius:10px;border:none;background:#3fae84;color:#0b1410;cursor:pointer}
+  #checkout-btn:disabled{opacity:.6}
+  #cart-msg{font-size:.8rem;padding:8px 10px;border-radius:8px;border:1px solid #352f27}
+  #cart-msg.error{color:#e2715c;border-color:#e2715c}
+  #cart-msg.ok{color:#3fae84;border-color:#3fae84}
+  #cart-msg:empty{display:none}
+
+  /* ---- connexion acheteur (modale simple) ---- */
+  #auth-overlay{position:fixed;inset:0;background:rgba(10,9,7,.7);display:none;align-items:center;justify-content:center;z-index:35;padding:20px}
+  #auth-overlay.open{display:flex}
+  #auth-card{background:#1a1814;border:1px solid #352f27;border-radius:16px;padding:22px;width:min(360px,100%);display:flex;flex-direction:column;gap:12px}
+  #auth-card h3{margin:0;font-size:1rem}
+  .authtabs{display:flex;gap:8px}
+  .authtab{flex:1;text-align:center;padding:8px;border-radius:9px;font-size:.82rem;font-weight:600;cursor:pointer;color:#a69d8f;border:1px solid #352f27}
+  .authtab.active{background:#3fae84;color:#0b1410;border-color:#3fae84}
+  #auth-card label{font-size:.8rem;font-weight:600;display:flex;flex-direction:column;gap:5px}
+  #auth-card input{font:inherit;font-size:.92rem;padding:9px 11px;border-radius:9px;border:1px solid #352f27;background:#211e19;color:#f2eee6}
+  #auth-card button{font:inherit;font-weight:700;font-size:.92rem;padding:11px 16px;border-radius:10px;border:none;background:#3fae84;color:#0b1410;cursor:pointer}
+  #auth-cancel{background:none!important;color:#a69d8f!important;border:1px solid #352f27!important;font-weight:600!important}
+
+  /* ---- joystick mobile ---- */
+  #dpad{position:fixed;left:16px;bottom:18px;z-index:20;display:none;grid-template-columns:44px 44px 44px;grid-template-rows:44px 44px 44px;gap:4px}
+  #dpad button{background:rgba(26,24,20,.75);border:1px solid #352f27;color:#f2eee6;border-radius:10px;font-size:1.1rem;backdrop-filter:blur(6px)}
+  @media (max-width:640px){ #dpad{ display:grid } }
+</style>
+</head>
+<body>
+
+<div id="loading"><div class="spin"></div><div class="txt">Construction de la galerie...</div></div>
+
+<div id="canvas-wrap"></div>
+
+<div id="hud">
+  <div>
+    <h1>eMarket-Palace</h1>
+    <div class="sub" id="hud-sub">Déplace-toi dans la galerie et clique sur une boutique.</div>
+  </div>
+</div>
+
+<div id="filters"></div>
+
+<div id="hint">Flèches / ZQSD ou WASD pour marcher &middot; glisser pour regarder autour &middot; clique une vitrine pour l'ouvrir</div>
+
+<div id="dpad">
+  <span></span><button id="dp-up">▲</button><span></span>
+  <button id="dp-left">◀</button><span></span><button id="dp-right">▶</button>
+  <span></span><button id="dp-down">▼</button><span></span>
+</div>
+
+<div id="empty-gallery">
+  <div class="t">Aucune boutique pour l'instant</div>
+  <div class="s">Les commerçants qui s'inscrivent apparaîtront ici comme des vitrines dans la galerie, dès que leur boutique est créée.</div>
+</div>
+
+<div id="panel">
+  <div id="panel-head">
+    <div class="badge" id="panel-badge">?</div>
+    <div>
+      <h2 id="panel-name"></h2>
+      <div class="cat" id="panel-cat"></div>
+    </div>
+    <button id="panel-close">&times;</button>
+  </div>
+  <div id="panel-desc"></div>
+  <div id="panel-products"><div class="empty">Chargement...</div></div>
+</div>
+
+<button id="cart-btn">🛍️ Panier <span class="count" id="cart-count">0</span></button>
+
+<div id="cart-panel">
+  <div id="cart-head"><h2>Mon panier</h2><button id="cart-close">&times;</button></div>
+  <div id="cart-items"><div class="empty">Ton panier est vide. Ajoute des produits depuis une boutique.</div></div>
+  <div id="checkout-area">
+    <div id="cart-msg"></div>
+    <div id="total-line"><span>Total</span><span id="total-amount">0 $</span></div>
+    <label>Mode de paiement
+      <select id="payment-method">
+        <option value="mpesa">M-Pesa</option>
+        <option value="orange_money">Orange Money</option>
+        <option value="airtel_money">Airtel Money</option>
+        <option value="card">Carte bancaire</option>
+      </select>
+    </label>
+    <button id="checkout-btn">Commander</button>
+  </div>
+</div>
+
+<div id="auth-overlay">
+  <div id="auth-card">
+    <h3>Connecte-toi pour commander</h3>
+    <div class="authtabs">
+      <div class="authtab active" id="auth-tab-login">Se connecter</div>
+      <div class="authtab" id="auth-tab-signup">Créer un compte</div>
+    </div>
+    <label id="auth-name-wrap" style="display:none">Nom complet<input type="text" id="auth-name" placeholder="Ton nom"></label>
+    <label>Email<input type="email" id="auth-email" placeholder="toi@exemple.com"></label>
+    <label>Mot de passe<input type="password" id="auth-password" placeholder="6 caractères minimum"></label>
+    <div id="auth-msg" style="font-size:.8rem;color:#e2715c"></div>
+    <button id="auth-submit">Se connecter</button>
+    <button id="auth-cancel">Annuler</button>
+  </div>
+</div>
+
+<script>
+/* ---- chargement robuste des librairies, avec sources de secours ----
+   Si un CDN est bloqué ou lent, on retente avec un autre avant d'abandonner. */
+function setLoadingText(t){
+  var box = document.getElementById("loading");
+  if (!box) return;
+  box.style.display = "flex";
+  box.style.opacity = "1";
+  var el = box.querySelector(".txt");
+  if (el) el.textContent = t;
+}
+
+function loadScript(urls, onDone, label){
+  var i = 0;
+  function tryNext(){
+    if (i >= urls.length){
+      setLoadingText("Impossible de charger " + label + ". Vérifie ta connexion internet et réessaie, ou désactive un éventuel bloqueur de script pour ce fichier.");
+      return;
+    }
+    var url = urls[i++];
+    var s = document.createElement("script");
+    s.src = url;
+    s.onload = onDone;
+    s.onerror = function(){ setLoadingText("Chargement de " + label + " (source de secours)..."); tryNext(); };
+    document.head.appendChild(s);
+  }
+  tryNext();
+}
+
+window.addEventListener("error", function(ev){
+  setLoadingText("Erreur : " + (ev.message || "voir la console (F12)"));
+});
+
+setLoadingText("Chargement du moteur 3D...");
+loadScript([
+  "https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js",
+  "https://unpkg.com/three@0.128.0/build/three.min.js"
+], function(){
+  setLoadingText("Chargement des contrôles de caméra...");
+  loadScript([
+    "https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js",
+    "https://unpkg.com/three@0.128.0/examples/js/controls/OrbitControls.js"
+  ], function(){
+    setLoadingText("Connexion à la base de données...");
+    loadScript([
+      "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js",
+      "https://unpkg.com/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"
+    ], function(){
+      setLoadingText("Construction de la galerie...");
+      startApp();
+    }, "la connexion à la base de données (Supabase)");
+  }, "les contrôles de caméra (OrbitControls)");
+}, "le moteur 3D (Three.js)");
+
+function startApp(){
+"use strict";
+
+if (!window.THREE || !window.THREE.OrbitControls){
+  setLoadingText("Le moteur 3D n'a pas pu s'initialiser correctement. Recharge la page (F5).");
+  return;
+}
+if (!window.supabase){
+  setLoadingText("La connexion à la base de données n'a pas pu s'initialiser. Recharge la page (F5).");
+  return;
+}
+
+var SUPABASE_URL = "https://dnwfbnhvxnoyosjuzxxs.supabase.co";
+var SUPABASE_KEY = "sb_publishable_oWWjQGlbhIl7FGsB5cK75w_PlNeDmpf";
+var client = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+/* ================== état global ================== */
+var allStores = [];
+var activeCategory = "Toutes";
+var boothMeshes = []; // { mesh, sign, group, store }
+var currentStore = null;
+var cart = {}; // product_id -> { product, qty }
+var currentUser = null;
+
+/* ================== scène three.js ================== */
+var wrap = document.getElementById("canvas-wrap");
+var scene = new THREE.Scene();
+scene.background = new THREE.Color(0x15130f);
+scene.fog = new THREE.Fog(0x15130f, 18, 46);
+
+var camera = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.1, 200);
+camera.position.set(0, 2.2, 14);
+
+var renderer = new THREE.WebGLRenderer({ antialias:true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.shadowMap.enabled = true;
+wrap.appendChild(renderer.domElement);
+
+var controls = new THREE.OrbitControls(camera, renderer.domElement);
+controls.target.set(0, 1.8, 0);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+controls.minDistance = 1;
+controls.maxDistance = 6;
+controls.maxPolarAngle = Math.PI * 0.52;
+controls.minPolarAngle = Math.PI * 0.25;
+controls.enablePan = false;
+controls.update();
+
+/* lumières */
+scene.add(new THREE.HemisphereLight(0xfff3df, 0x1a1712, 0.7));
+var sun = new THREE.DirectionalLight(0xffe9c7, 0.9);
+sun.position.set(10, 18, 8);
+sun.castShadow = true;
+sun.shadow.mapSize.set(1024,1024);
+scene.add(sun);
+
+/* sol */
+var floorGeo = new THREE.CircleGeometry(28, 48);
+var floorMat = new THREE.MeshStandardMaterial({ color:0x2a2520, roughness:0.85 });
+var floor = new THREE.Mesh(floorGeo, floorMat);
+floor.rotation.x = -Math.PI/2;
+floor.receiveShadow = true;
+scene.add(floor);
+
+/* anneau central décoratif */
+var ringGeo = new THREE.RingGeometry(3.6, 3.9, 48);
+var ringMat = new THREE.MeshStandardMaterial({ color:0x3fae84, emissive:0x3fae84, emissiveIntensity:0.35, roughness:0.5 });
+var ring = new THREE.Mesh(ringGeo, ringMat);
+ring.rotation.x = -Math.PI/2;
+ring.position.y = 0.02;
+scene.add(ring);
+
+/* colonnes de fond, décoratives */
+for (var c=0;c<10;c++){
+  var ang = (c/10) * Math.PI*2;
+  var r = 25;
+  var colGeo = new THREE.CylinderGeometry(0.4, 0.5, 7, 12);
+  var colMat = new THREE.MeshStandardMaterial({ color:0x3a3327, roughness:0.9 });
+  var col = new THREE.Mesh(colGeo, colMat);
+  col.position.set(Math.cos(ang)*r, 3.5, Math.sin(ang)*r);
+  col.castShadow = true;
+  scene.add(col);
+}
+
+/* texture de texte pour les enseignes */
+function roundRect(ctx,x,y,w,h,r){
+  ctx.beginPath();
+  ctx.moveTo(x+r,y);
+  ctx.arcTo(x+w,y,x+w,y+h,r);
+  ctx.arcTo(x+w,y+h,x,y+h,r);
+  ctx.arcTo(x,y+h,x,y,r);
+  ctx.arcTo(x,y,x+w,y,r);
+  ctx.closePath();
+}
+function textTexture(line1, line2, bg, fg){
+  var c = document.createElement("canvas");
+  c.width = 512; c.height = 256;
+  var ctx = c.getContext("2d");
+  ctx.fillStyle = bg;
+  roundRect(ctx, 0, 0, 512, 256, 28);
+  ctx.fill();
+  ctx.fillStyle = fg;
+  ctx.textAlign = "center";
+  ctx.font = "bold 44px Inter, system-ui, sans-serif";
+  ctx.fillText(line1, 256, 110, 460);
+  if (line2){
+    ctx.font = "28px Inter, system-ui, sans-serif";
+    ctx.fillStyle = "#cfe9dd";
+    ctx.fillText(line2, 256, 162, 460);
+  }
+  var tex = new THREE.CanvasTexture(c);
+  tex.needsUpdate = true;
+  return tex;
+}
+
+var boothGroup = new THREE.Group();
+scene.add(boothGroup);
+
+function clearBooths(){
+  boothMeshes.forEach(function(b){ boothGroup.remove(b.group); });
+  boothMeshes = [];
+}
+
+function buildBooths(list){
+  clearBooths();
+  var n = list.length;
+  if (n === 0) return;
+  var radius = Math.max(8, 3.2 * Math.max(n, 3) / Math.PI);
+  radius = Math.min(radius, 22);
+  list.forEach(function(store, i){
+    var ang = (i / n) * Math.PI * 2;
+    var x = Math.cos(ang) * radius;
+    var z = Math.sin(ang) * radius;
+
+    var group = new THREE.Group();
+    group.position.set(x, 0, z);
+    group.lookAt(0, 0, 0);
+
+    var hue = (i * 47) % 360;
+    var color = new THREE.Color("hsl(" + hue + ", 38%, 42%)");
+
+    var standGeo = new THREE.BoxGeometry(2.6, 2.4, 1.1);
+    var standMat = new THREE.MeshStandardMaterial({ color: color, roughness:0.7 });
+    var stand = new THREE.Mesh(standGeo, standMat);
+    stand.position.y = 1.2;
+    stand.castShadow = true;
+    stand.receiveShadow = true;
+    group.add(stand);
+
+    var roofGeo = new THREE.BoxGeometry(2.9, 0.18, 1.3);
+    var roofMat = new THREE.MeshStandardMaterial({ color:0x3fae84, roughness:0.6 });
+    var roof = new THREE.Mesh(roofGeo, roofMat);
+    roof.position.y = 2.5;
+    roof.castShadow = true;
+    group.add(roof);
+
+    var tex = textTexture(store.store_name, store.category, "#1a1814", "#f2eee6");
+    var signGeo = new THREE.PlaneGeometry(2.4, 1.2);
+    var signMat = new THREE.MeshBasicMaterial({ map: tex, transparent:true });
+    var sign = new THREE.Mesh(signGeo, signMat);
+    sign.position.set(0, 1.25, 0.58);
+    group.add(sign);
+
+    boothGroup.add(group);
+    boothMeshes.push({ mesh: stand, sign: sign, group: group, store: store });
+  });
+}
+
+/* ================== déplacement (marche) ================== */
+var move = { fwd:false, back:false, left:false, right:false };
+var walkSpeed = 7; // unités/seconde
+
+window.addEventListener("keydown", function(ev){
+  switch((ev.key||"").toLowerCase()){
+    case "arrowup": case "w": case "z": move.fwd = true; break;
+    case "arrowdown": case "s": move.back = true; break;
+    case "arrowleft": case "a": case "q": move.left = true; break;
+    case "arrowright": case "d": move.right = true; break;
+  }
+});
+window.addEventListener("keyup", function(ev){
+  switch((ev.key||"").toLowerCase()){
+    case "arrowup": case "w": case "z": move.fwd = false; break;
+    case "arrowdown": case "s": move.back = false; break;
+    case "arrowleft": case "a": case "q": move.left = false; break;
+    case "arrowright": case "d": move.right = false; break;
+  }
+});
+function bindHold(id, key){
+  var el = document.getElementById(id);
+  var start = function(e){ e.preventDefault(); move[key] = true; };
+  var end = function(e){ e.preventDefault(); move[key] = false; };
+  el.addEventListener("touchstart", start);
+  el.addEventListener("touchend", end);
+  el.addEventListener("touchcancel", end);
+  el.addEventListener("mousedown", start);
+  el.addEventListener("mouseup", end);
+  el.addEventListener("mouseleave", end);
+}
+bindHold("dp-up","fwd"); bindHold("dp-down","back"); bindHold("dp-left","left"); bindHold("dp-right","right");
+
+var clock = new THREE.Clock();
+
+function updateMovement(){
+  var dt = clock.getDelta();
+  var speed = walkSpeed * dt;
+  if (!move.fwd && !move.back && !move.left && !move.right) return;
+
+  var dir = new THREE.Vector3();
+  camera.getWorldDirection(dir);
+  dir.y = 0; dir.normalize();
+  var right = new THREE.Vector3().crossVectors(dir, new THREE.Vector3(0,1,0)).normalize().negate();
+
+  var delta = new THREE.Vector3();
+  if (move.fwd) delta.add(dir);
+  if (move.back) delta.sub(dir);
+  if (move.right) delta.add(right);
+  if (move.left) delta.sub(right);
+  if (delta.lengthSq() > 0){
+    delta.normalize().multiplyScalar(speed);
+    // limite au disque de la galerie
+    var next = camera.position.clone().add(delta);
+    if (Math.hypot(next.x, next.z) < 25){
+      camera.position.add(delta);
+      controls.target.add(delta);
+    }
+  }
+}
+
+/* ================== raycasting / clic ================== */
+var raycaster = new THREE.Raycaster();
+var pointer = new THREE.Vector2();
+var downPos = null;
+
+function pointerToNDC(ev){
+  var x = (ev.touches && ev.touches[0]) ? ev.touches[0].clientX : ev.clientX;
+  var y = (ev.touches && ev.touches[0]) ? ev.touches[0].clientY : ev.clientY;
+  pointer.x = (x / window.innerWidth) * 2 - 1;
+  pointer.y = -(y / window.innerHeight) * 2 + 1;
+}
+
+renderer.domElement.addEventListener("pointerdown", function(ev){ downPos = { x: ev.clientX, y: ev.clientY }; });
+renderer.domElement.addEventListener("pointerup", function(ev){
+  if (!downPos) return;
+  var moved = Math.hypot(ev.clientX - downPos.x, ev.clientY - downPos.y);
+  downPos = null;
+  if (moved > 6) return;
+  pointerToNDC(ev);
+  raycaster.setFromCamera(pointer, camera);
+  var meshes = boothMeshes.map(function(b){ return b.mesh; });
+  var hits = raycaster.intersectObjects(meshes);
+  if (hits.length > 0){
+    var hit = boothMeshes.find(function(b){ return b.mesh === hits[0].object; });
+    if (hit) openStore(hit.store);
+  }
+});
+
+/* ================== boucle de rendu ================== */
+function animate(){
+  requestAnimationFrame(animate);
+  updateMovement();
+  controls.update();
+  renderer.render(scene, camera);
+}
+animate();
+
+window.addEventListener("resize", function(){
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+/* ================== utilitaires ================== */
+function escapeHtml(s){
+  return String(s == null ? "" : s).replace(/[&<>"']/g, function(c){
+    return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];
+  });
+}
+
+/* ================== filtres / chargement boutiques ================== */
+function renderFilters(){
+  var cats = ["Toutes"];
+  allStores.forEach(function(s){ if (cats.indexOf(s.category) === -1) cats.push(s.category); });
+  var box = document.getElementById("filters");
+  box.innerHTML = "";
+  cats.forEach(function(c){
+    var chip = document.createElement("button");
+    chip.className = "chip" + (c === activeCategory ? " active" : "");
+    chip.textContent = c;
+    chip.addEventListener("click", function(){
+      activeCategory = c;
+      renderFilters();
+      applyFilter();
+    });
+    box.appendChild(chip);
+  });
+}
+
+function applyFilter(){
+  var list = activeCategory === "Toutes" ? allStores : allStores.filter(function(s){ return s.category === activeCategory; });
+  buildBooths(list);
+  document.getElementById("empty-gallery").style.display = list.length === 0 ? "flex" : "none";
+  document.getElementById("hud-sub").textContent = list.length + (list.length === 1 ? " boutique ouverte" : " boutiques ouvertes") + (activeCategory !== "Toutes" ? " · " + activeCategory : "");
+}
+
+function loadStores(){
+  client.from("stores").select("*").order("created_at", { ascending: false })
+    .then(function(res){
+      if (res.error) throw res.error;
+      allStores = res.data || [];
+      renderFilters();
+      applyFilter();
+      document.getElementById("loading").style.opacity = "0";
+      setTimeout(function(){ document.getElementById("loading").style.display = "none"; }, 400);
+    })
+    .catch(function(err){
+      document.getElementById("loading").querySelector(".txt").textContent = "Erreur : " + (err.message || err);
+    });
+}
+
+/* ================== panneau boutique + produits ================== */
+var panel = document.getElementById("panel");
+document.getElementById("panel-close").addEventListener("click", function(){ panel.classList.remove("open"); });
+
+function openStore(store){
+  currentStore = store;
+  document.getElementById("panel-badge").textContent = (store.store_name||"?").trim().charAt(0).toUpperCase();
+  document.getElementById("panel-name").textContent = store.store_name;
+  document.getElementById("panel-cat").textContent = store.category;
+  document.getElementById("panel-desc").textContent = store.description || "";
+  var area = document.getElementById("panel-products");
+  area.innerHTML = '<div class="empty">Chargement...</div>';
+  panel.classList.add("open");
+
+  client.from("products").select("*").eq("store_id", store.id).eq("is_active", true)
+    .then(function(res){
+      if (res.error) throw res.error;
+      var products = res.data || [];
+      if (products.length === 0){
+        area.innerHTML = '<div class="empty">Cette boutique n\'a pas encore ajouté de produits.</div>';
+        return;
+      }
+      area.innerHTML = "";
+      products.forEach(function(p){
+        var price = Number(p.price);
+        var card = document.createElement("div");
+        card.className = "pcard";
+        card.innerHTML =
+          '<div class="info">' +
+            '<div class="name">' + escapeHtml(p.title) + '</div>' +
+            '<div class="price">' + (isNaN(price) ? "" : price.toLocaleString("fr-FR") + " $") + '</div>' +
+            (p.description ? '<div class="d">' + escapeHtml(p.description) + '</div>' : "") +
+          '</div>';
+        var btn = document.createElement("button");
+        btn.className = "addbtn";
+        btn.textContent = "Ajouter";
+        btn.addEventListener("click", function(){
+          addToCart(p, store);
+          btn.textContent = "Ajouté ✓";
+          setTimeout(function(){ btn.textContent = "Ajouter"; }, 900);
+        });
+        card.appendChild(btn);
+        area.appendChild(card);
+      });
+    })
+    .catch(function(err){
+      area.innerHTML = '<div class="empty">Erreur : ' + escapeHtml(err.message || err) + '</div>';
+    });
+}
+
+/* ================== panier ================== */
+function addToCart(product, store){
+  if (!cart[product.id]){
+    cart[product.id] = { product: product, store: store, qty: 0 };
+  }
+  cart[product.id].qty += 1;
+  renderCart();
+}
+
+function changeQty(productId, delta){
+  var item = cart[productId];
+  if (!item) return;
+  item.qty += delta;
+  if (item.qty <= 0) delete cart[productId];
+  renderCart();
+}
+
+function cartCount(){
+  return Object.values(cart).reduce(function(sum, it){ return sum + it.qty; }, 0);
+}
+function cartTotal(){
+  return Object.values(cart).reduce(function(sum, it){ return sum + Number(it.product.price) * it.qty; }, 0);
+}
+
+function renderCart(){
+  document.getElementById("cart-count").textContent = cartCount();
+  var area = document.getElementById("cart-items");
+  var items = Object.values(cart);
+  if (items.length === 0){
+    area.innerHTML = '<div class="empty">Ton panier est vide. Ajoute des produits depuis une boutique.</div>';
+  } else {
+    area.innerHTML = "";
+    items.forEach(function(it){
+      var row = document.createElement("div");
+      row.className = "citem";
+      row.innerHTML =
+        '<div>' +
+          '<div class="n">' + escapeHtml(it.product.title) + '</div>' +
+          '<div class="s">' + escapeHtml(it.store.store_name) + ' &middot; ' + Number(it.product.price).toLocaleString("fr-FR") + ' $</div>' +
+        '</div>';
+      var qty = document.createElement("div");
+      qty.className = "qty";
+      var minus = document.createElement("button"); minus.textContent = "–";
+      var span = document.createElement("span"); span.textContent = it.qty;
+      var plus = document.createElement("button"); plus.textContent = "+";
+      minus.addEventListener("click", function(){ changeQty(it.product.id, -1); });
+      plus.addEventListener("click", function(){ changeQty(it.product.id, 1); });
+      qty.appendChild(minus); qty.appendChild(span); qty.appendChild(plus);
+      row.appendChild(qty);
+      area.appendChild(row);
+    });
+  }
+  document.getElementById("total-amount").textContent = cartTotal().toLocaleString("fr-FR") + " $";
+}
+
+var cartPanel = document.getElementById("cart-panel");
+document.getElementById("cart-btn").addEventListener("click", function(){ cartPanel.classList.add("open"); });
+document.getElementById("cart-close").addEventListener("click", function(){ cartPanel.classList.remove("open"); });
+
+function showCartMsg(text, kind){
+  var box = document.getElementById("cart-msg");
+  box.textContent = text || "";
+  box.className = "" + (kind || "");
+}
+
+document.getElementById("checkout-btn").addEventListener("click", function(){
+  if (cartCount() === 0){
+    showCartMsg("Ton panier est vide.", "error");
+    return;
+  }
+  if (!currentUser){
+    openAuth();
+    return;
+  }
+  submitOrder();
+});
+
+function submitOrder(){
+  showCartMsg("", "");
+  var btn = document.getElementById("checkout-btn");
+  btn.disabled = true;
+  btn.textContent = "Commande en cours...";
+
+  var payment_method = document.getElementById("payment-method").value;
+  var total = cartTotal();
+
+  client.from("orders").insert({
+    buyer_id: currentUser.id,
+    total_amount: total,
+    status: "paid",
+    payment_method: payment_method
+  }).select().single()
+    .then(function(res){
+      if (res.error) throw res.error;
+      var order = res.data;
+      var items = Object.values(cart).map(function(it){
+        return { order_id: order.id, product_id: it.product.id, quantity: it.qty, unit_price: it.product.price };
+      });
+      return client.from("order_items").insert(items);
+    })
+    .then(function(res){
+      if (res && res.error) throw res.error;
+      cart = {};
+      renderCart();
+      showCartMsg("Commande confirmée ! Le commerçant va la préparer.", "ok");
+    })
+    .catch(function(err){
+      showCartMsg(err.message || String(err), "error");
+    })
+    .finally(function(){
+      btn.disabled = false;
+      btn.textContent = "Commander";
+    });
+}
+
+/* ================== connexion acheteur ================== */
+var authMode = "login";
+var authOverlay = document.getElementById("auth-overlay");
+
+function openAuth(){ authOverlay.classList.add("open"); }
+function closeAuth(){ authOverlay.classList.remove("open"); }
+
+document.getElementById("auth-cancel").addEventListener("click", closeAuth);
+document.getElementById("auth-tab-login").addEventListener("click", function(){
+  authMode = "login";
+  document.getElementById("auth-tab-login").classList.add("active");
+  document.getElementById("auth-tab-signup").classList.remove("active");
+  document.getElementById("auth-name-wrap").style.display = "none";
+  document.getElementById("auth-submit").textContent = "Se connecter";
+});
+document.getElementById("auth-tab-signup").addEventListener("click", function(){
+  authMode = "signup";
+  document.getElementById("auth-tab-signup").classList.add("active");
+  document.getElementById("auth-tab-login").classList.remove("active");
+  document.getElementById("auth-name-wrap").style.display = "flex";
+  document.getElementById("auth-submit").textContent = "Créer mon compte";
+});
+
+function translateAuthError(err){
+  var m = (err && err.message) || String(err);
+  if (/already registered|already exists/i.test(m)) return "Cette adresse email a déjà un compte.";
+  if (/invalid login credentials/i.test(m)) return "Email ou mot de passe incorrect.";
+  if (/password/i.test(m) && /short|least/i.test(m)) return "Le mot de passe est trop court (6 caractères minimum).";
+  return m;
+}
+
+document.getElementById("auth-submit").addEventListener("click", function(){
+  var name = document.getElementById("auth-name").value.trim();
+  var email = document.getElementById("auth-email").value.trim();
+  var password = document.getElementById("auth-password").value;
+  var msg = document.getElementById("auth-msg");
+  msg.textContent = "";
+  var btn = document.getElementById("auth-submit");
+  btn.disabled = true;
+
+  var action = authMode === "signup"
+    ? client.auth.signUp({ email: email, password: password })
+    : client.auth.signInWithPassword({ email: email, password: password });
+
+  action.then(function(res){
+      if (res.error) throw res.error;
+      var user = res.data && res.data.user;
+      if (!user) throw new Error("Vérifie ton email pour confirmer ton compte avant de te connecter.");
+      currentUser = user;
+      if (authMode === "signup"){
+        return client.from("profiles").upsert({ id: user.id, full_name: name || email.split("@")[0], role: "buyer" });
+      }
+    })
+    .then(function(){
+      closeAuth();
+      submitOrder();
+    })
+    .catch(function(err){ msg.textContent = translateAuthError(err); })
+    .finally(function(){ btn.disabled = false; });
+});
+
+/* ================== démarrage ================== */
+renderCart();
+loadStores();
+}
+</script>
+</body>
+</html>

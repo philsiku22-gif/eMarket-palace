@@ -1,0 +1,377 @@
+<title>Panier eMarket-Palace</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* Layout: auth acheteur -> catalogue produits avec bouton panier flottant -> vue panier -> confirmation */
+:root{
+  --bg:#f7f5f1; --surface:#ffffff; --ink:#1c1a17; --muted:#6b645c;
+  --accent:#1f7a5c; --accent-ink:#ffffff; --border:#e4ddd3; --danger:#b3432f;
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#15130f; --surface:#211e19; --ink:#f2eee6; --muted:#a69d8f;
+    --accent:#3fae84; --accent-ink:#0b1410; --border:#352f27; --danger:#e2715c;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#15130f; --surface:#211e19; --ink:#f2eee6; --muted:#a69d8f;
+  --accent:#3fae84; --accent-ink:#0b1410; --border:#352f27; --danger:#e2715c;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{
+  background:var(--bg); color:var(--ink); margin:0;
+  font-family:"Inter",system-ui,-apple-system,sans-serif;
+  padding-left:max(16px, env(safe-area-inset-left,0px));
+  padding-right:max(16px, env(safe-area-inset-right,0px));
+}
+.wrap{max-width:560px; margin:0 auto; padding-block:24px 90px; display:flex; flex-direction:column; gap:18px}
+h1{font-family:"Space Grotesk",system-ui,sans-serif; font-size:1.4rem; margin:0}
+.sub{color:var(--muted); font-size:.88rem; margin-top:2px}
+.card{background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:20px; display:flex; flex-direction:column; gap:12px}
+label{font-size:.82rem; font-weight:600; display:flex; flex-direction:column; gap:6px}
+input,select{font:inherit; font-size:.95rem; padding:10px 12px; border-radius:9px; border:1px solid var(--border); background:var(--bg); color:var(--ink)}
+button{font:inherit; font-weight:600; font-size:.95rem; padding:12px 16px; border-radius:10px; border:none; background:var(--accent); color:var(--accent-ink); cursor:pointer}
+button:disabled{opacity:.6; cursor:default}
+button.ghost{background:transparent; color:var(--muted); border:1px solid var(--border)}
+.tabs{display:flex; gap:8px}
+.tab{flex:1; text-align:center; padding:8px; border-radius:9px; font-size:.85rem; font-weight:600; cursor:pointer; color:var(--muted); border:1px solid var(--border)}
+.tab.active{background:var(--accent); color:var(--accent-ink); border-color:var(--accent)}
+.msg{font-size:.85rem; padding:10px 12px; border-radius:9px; border:1px solid var(--border)}
+.msg.error{color:var(--danger); border-color:var(--danger)}
+.msg.ok{color:var(--accent); border-color:var(--accent)}
+.hidden{display:none!important}
+.product-row{display:flex; justify-content:space-between; align-items:center; gap:10px; padding:12px 0; border-bottom:1px solid var(--border)}
+.product-row:last-child{border-bottom:none}
+.product-info{min-width:0}
+.product-info .name{font-weight:600; font-size:.92rem}
+.product-info .store{font-size:.78rem; color:var(--muted)}
+.product-info .price{font-family:"Space Grotesk",system-ui,sans-serif; font-size:.95rem; margin-top:2px}
+.qty-btn{flex:none; width:34px; height:34px; border-radius:50%; border:1px solid var(--border); background:var(--surface); color:var(--ink); font-size:1rem; display:flex; align-items:center; justify-content:center; cursor:pointer}
+.fab{
+  position:fixed; right:max(20px, env(safe-area-inset-right,0px)); bottom:max(20px, env(safe-area-inset-bottom,0px));
+  background:var(--accent); color:var(--accent-ink); border:none; border-radius:999px; padding:14px 20px;
+  font-weight:700; font-size:.92rem; cursor:pointer; box-shadow:0 6px 18px rgba(0,0,0,.2); z-index:5;
+}
+.cart-row{display:flex; justify-content:space-between; align-items:center; gap:10px; padding:10px 0; border-bottom:1px solid var(--border)}
+.cart-row:last-child{border-bottom:none}
+.qty-group{display:flex; align-items:center; gap:8px}
+.total-row{display:flex; justify-content:space-between; font-weight:700; font-size:1.05rem; padding-top:6px}
+.back{display:inline-flex; align-items:center; gap:6px; font-size:.85rem; color:var(--muted); background:none; border:none; cursor:pointer; padding:0; width:fit-content}
+.loading{color:var(--muted); font-size:.88rem; text-align:center; padding:24px}
+.success{display:flex; flex-direction:column; gap:10px; text-align:center; align-items:center; padding:12px 0}
+.success .badge{width:52px;height:52px;border-radius:50%;background:var(--accent);color:var(--accent-ink);display:flex;align-items:center;justify-content:center;font-size:1.4rem}
+footer{font-size:.78rem; color:var(--muted); text-align:center}
+</style>
+
+<div class="wrap">
+  <div>
+    <h1>eMarket-Palace</h1>
+    <div class="sub" id="header-sub">Connecte-toi pour passer commande.</div>
+  </div>
+
+  <div id="msg-box"></div>
+
+  <!-- AUTH -->
+  <div id="view-auth" class="card">
+    <div class="tabs">
+      <div class="tab active" id="tab-login">Se connecter</div>
+      <div class="tab" id="tab-signup">Créer un compte</div>
+    </div>
+    <label>Adresse email
+      <input type="email" id="auth-email" placeholder="toi@exemple.com" autocomplete="email">
+    </label>
+    <label>Mot de passe
+      <input type="password" id="auth-password" placeholder="6 caractères minimum" autocomplete="current-password">
+    </label>
+    <button id="btn-auth">Se connecter</button>
+  </div>
+
+  <!-- CATALOGUE -->
+  <div id="view-catalog" class="hidden">
+    <div class="card" id="catalog-area"><div class="loading">Chargement des produits...</div></div>
+  </div>
+
+  <!-- PANIER -->
+  <div id="view-cart" class="hidden">
+    <button class="back" id="btn-back-cart">&larr; Continuer mes achats</button>
+    <div class="card" id="cart-area"></div>
+    <label style="margin-top:12px">Mode de paiement
+      <select id="payment-method">
+        <option value="mpesa">M-Pesa</option>
+        <option value="orange_money">Orange Money</option>
+        <option value="airtel_money">Airtel Money</option>
+        <option value="card">Carte bancaire</option>
+      </select>
+    </label>
+    <button id="btn-checkout" style="margin-top:12px">Payer et commander</button>
+  </div>
+
+  <!-- CONFIRMATION -->
+  <div id="view-done" class="card hidden">
+    <div class="success">
+      <div class="badge">✓</div>
+      <div><strong>Commande passée</strong></div>
+      <div class="sub" id="done-sub"></div>
+    </div>
+  </div>
+
+  <button class="fab hidden" id="fab-cart">Panier (<span id="fab-count">0</span>)</button>
+
+  <footer>eMarket-Palace &middot; connecté à la base de données en direct</footer>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script>
+(function(){
+  "use strict";
+  var SUPABASE_URL = "https://dnwfbnhvxnoyosjuzxxs.supabase.co";
+  var SUPABASE_KEY = "sb_publishable_oWWjQGlbhIl7FGsB5cK75w_PlNeDmpf";
+  var client = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+  var mode = "login";
+  var currentUser = null;
+  var products = [];
+  var cart = {}; // product_id -> {product, qty}
+
+  var msgBox = document.getElementById("msg-box");
+  var headerSub = document.getElementById("header-sub");
+  var viewAuth = document.getElementById("view-auth");
+  var viewCatalog = document.getElementById("view-catalog");
+  var viewCart = document.getElementById("view-cart");
+  var viewDone = document.getElementById("view-done");
+  var fab = document.getElementById("fab-cart");
+  var fabCount = document.getElementById("fab-count");
+
+  function showMsg(text, kind){
+    msgBox.innerHTML = "";
+    if (!text) return;
+    var div = document.createElement("div");
+    div.className = "msg " + (kind || "");
+    div.textContent = text;
+    msgBox.appendChild(div);
+  }
+
+  function escapeHtml(s){
+    return String(s == null ? "" : s).replace(/[&<>"']/g, function(c){
+      return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];
+    });
+  }
+
+  document.getElementById("tab-login").addEventListener("click", function(){
+    mode = "login";
+    document.getElementById("tab-login").classList.add("active");
+    document.getElementById("tab-signup").classList.remove("active");
+    document.getElementById("btn-auth").textContent = "Se connecter";
+  });
+  document.getElementById("tab-signup").addEventListener("click", function(){
+    mode = "signup";
+    document.getElementById("tab-signup").classList.add("active");
+    document.getElementById("tab-login").classList.remove("active");
+    document.getElementById("btn-auth").textContent = "Créer mon compte";
+  });
+
+  document.getElementById("btn-auth").addEventListener("click", function(){
+    showMsg("", "");
+    var email = document.getElementById("auth-email").value.trim();
+    var password = document.getElementById("auth-password").value;
+    var btn = document.getElementById("btn-auth");
+    btn.disabled = true;
+
+    var action = mode === "signup"
+      ? client.auth.signUp({ email: email, password: password })
+      : client.auth.signInWithPassword({ email: email, password: password });
+
+    action.then(function(res){
+        if (res.error) throw res.error;
+        var user = res.data && res.data.user;
+        if (!user) throw new Error("Vérifie ton email pour confirmer ton compte avant de te connecter.");
+        currentUser = user;
+        if (mode === "signup"){
+          return client.from("profiles").upsert({ id: user.id, full_name: email.split("@")[0], role: "buyer" });
+        }
+      })
+      .then(function(){
+        headerSub.textContent = "Connecté comme " + email;
+        viewAuth.classList.add("hidden");
+        viewCatalog.classList.remove("hidden");
+        loadProducts();
+      })
+      .catch(function(err){
+        showMsg(translateError(err), "error");
+      })
+      .finally(function(){ btn.disabled = false; });
+  });
+
+  function loadProducts(){
+    client.from("products").select("*, stores(store_name)").eq("is_active", true)
+      .then(function(res){
+        if (res.error) throw res.error;
+        products = res.data || [];
+        renderCatalog();
+      })
+      .catch(function(err){
+        document.getElementById("catalog-area").innerHTML = '<div class="sub">Impossible de charger les produits : ' + escapeHtml(err.message || err) + '</div>';
+      });
+  }
+
+  function renderCatalog(){
+    var area = document.getElementById("catalog-area");
+    if (products.length === 0){
+      area.innerHTML = '<div class="sub">Aucun produit disponible pour l\'instant. Reviens quand des boutiques auront ajouté leurs produits.</div>';
+      return;
+    }
+    area.innerHTML = "";
+    products.forEach(function(p){
+      var row = document.createElement("div");
+      row.className = "product-row";
+      var price = Number(p.price);
+      var storeName = p.stores ? p.stores.store_name : "";
+      row.innerHTML =
+        '<div class="product-info">' +
+          '<div class="name">' + escapeHtml(p.title) + '</div>' +
+          '<div class="store">' + escapeHtml(storeName) + '</div>' +
+          '<div class="price">' + (isNaN(price) ? "" : price.toLocaleString("fr-FR") + " $") + '</div>' +
+        '</div>';
+      var btn = document.createElement("button");
+      btn.className = "qty-btn";
+      btn.textContent = "+";
+      btn.addEventListener("click", function(){ addToCart(p); });
+      row.appendChild(btn);
+      area.appendChild(row);
+    });
+  }
+
+  function addToCart(product){
+    if (!cart[product.id]) cart[product.id] = { product: product, qty: 0 };
+    cart[product.id].qty += 1;
+    updateFab();
+  }
+
+  function cartCount(){
+    return Object.keys(cart).reduce(function(sum, id){ return sum + cart[id].qty; }, 0);
+  }
+
+  function updateFab(){
+    var count = cartCount();
+    fabCount.textContent = count;
+    fab.classList.toggle("hidden", count === 0 || viewCatalog.classList.contains("hidden"));
+  }
+
+  fab.addEventListener("click", function(){
+    viewCatalog.classList.add("hidden");
+    viewCart.classList.remove("hidden");
+    fab.classList.add("hidden");
+    renderCart();
+  });
+
+  document.getElementById("btn-back-cart").addEventListener("click", function(){
+    viewCart.classList.add("hidden");
+    viewCatalog.classList.remove("hidden");
+    updateFab();
+  });
+
+  function renderCart(){
+    var area = document.getElementById("cart-area");
+    var ids = Object.keys(cart);
+    if (ids.length === 0){
+      area.innerHTML = '<div class="sub">Ton panier est vide.</div>';
+      document.getElementById("btn-checkout").disabled = true;
+      return;
+    }
+    document.getElementById("btn-checkout").disabled = false;
+    area.innerHTML = "";
+    var total = 0;
+    ids.forEach(function(id){
+      var item = cart[id];
+      var lineTotal = Number(item.product.price) * item.qty;
+      total += lineTotal;
+      var row = document.createElement("div");
+      row.className = "cart-row";
+      row.innerHTML =
+        '<div class="product-info">' +
+          '<div class="name">' + escapeHtml(item.product.title) + '</div>' +
+          '<div class="store">' + lineTotal.toLocaleString("fr-FR") + ' $</div>' +
+        '</div>' +
+        '<div class="qty-group">' +
+          '<button class="qty-btn" data-action="dec">-</button>' +
+          '<span>' + item.qty + '</span>' +
+          '<button class="qty-btn" data-action="inc">+</button>' +
+        '</div>';
+      row.querySelector('[data-action="inc"]').addEventListener("click", function(){ item.qty++; renderCart(); updateFab(); });
+      row.querySelector('[data-action="dec"]').addEventListener("click", function(){
+        item.qty--;
+        if (item.qty <= 0) delete cart[id];
+        renderCart(); updateFab();
+      });
+      area.appendChild(row);
+    });
+    var totalRow = document.createElement("div");
+    totalRow.className = "total-row";
+    totalRow.innerHTML = "<span>Total</span><span>" + total.toLocaleString("fr-FR") + " $</span>";
+    area.appendChild(totalRow);
+  }
+
+  document.getElementById("btn-checkout").addEventListener("click", function(){
+    showMsg("", "");
+    var ids = Object.keys(cart);
+    if (ids.length === 0) return;
+    var total = ids.reduce(function(sum, id){ return sum + Number(cart[id].product.price) * cart[id].qty; }, 0);
+    var method = document.getElementById("payment-method").value;
+    var btn = document.getElementById("btn-checkout");
+    btn.disabled = true;
+    btn.textContent = "Paiement en cours...";
+
+    client.from("orders").insert({
+      buyer_id: currentUser.id,
+      total_amount: total,
+      status: "paid",
+      payment_method: method
+    }).select().single()
+      .then(function(res){
+        if (res.error) throw res.error;
+        var order = res.data;
+        var items = ids.map(function(id){
+          return {
+            order_id: order.id,
+            product_id: id,
+            quantity: cart[id].qty,
+            unit_price: cart[id].product.price
+          };
+        });
+        return client.from("order_items").insert(items).then(function(res2){
+          if (res2.error) throw res2.error;
+          return order;
+        });
+      })
+      .then(function(order){
+        cart = {};
+        viewCart.classList.add("hidden");
+        viewDone.classList.remove("hidden");
+        document.getElementById("done-sub").textContent =
+          "Commande #" + order.id.slice(0, 8) + " — " + Number(order.total_amount).toLocaleString("fr-FR") + " $ payés par " + labelMethod(method) + ".";
+      })
+      .catch(function(err){
+        showMsg(translateError(err), "error");
+      })
+      .finally(function(){
+        btn.disabled = false;
+        btn.textContent = "Payer et commander";
+      });
+  });
+
+  function labelMethod(m){
+    return { mpesa: "M-Pesa", orange_money: "Orange Money", airtel_money: "Airtel Money", card: "carte bancaire" }[m] || m;
+  }
+
+  function translateError(err){
+    var m = (err && err.message) || String(err);
+    if (/already registered|already exists/i.test(m)) return "Cette adresse email a déjà un compte.";
+    if (/invalid login credentials/i.test(m)) return "Email ou mot de passe incorrect.";
+    if (/password/i.test(m) && /short|least/i.test(m)) return "Le mot de passe est trop court (6 caractères minimum).";
+    if (/row-level security|rls/i.test(m)) return "Accès refusé par la base de données.";
+    return m;
+  }
+})();
+</script>
