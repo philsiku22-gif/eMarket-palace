@@ -173,6 +173,12 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
         if (res.error) throw res.error;
         var user = res.data && res.data.user;
         if (!user) throw new Error("Compte créé, mais aucune session n'a été retournée.");
+        // Supabase renvoie un faux succès (sans erreur explicite) quand l'email
+        // a déjà un compte, pour ne pas révéler quels emails sont enregistrés :
+        // identities vide = compte déjà existant, pas de session.
+        if (user.identities && user.identities.length === 0){
+          throw new Error("Cette adresse email a déjà un compte. Connecte-toi plutôt depuis la page \"Espace commerçant\".");
+        }
         currentUserId = user.id;
         var hasSession = !!(res.data && res.data.session);
 
