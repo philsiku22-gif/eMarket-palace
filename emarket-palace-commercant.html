@@ -274,7 +274,11 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
     // créer la boutique (stores.merchant_id pointe vers profiles.id, pas
     // directement vers le compte) — sans ça l'insertion échoue en silence.
     client.from("profiles")
-      .upsert({ id: currentUser.id, role: "merchant" })
+      .upsert({
+        id: currentUser.id,
+        role: "merchant",
+        full_name: (currentUser.user_metadata && currentUser.user_metadata.full_name) || (currentUser.email ? currentUser.email.split("@")[0] : "Commerçant")
+      })
       .then(function(profRes){
         if (profRes.error) throw profRes.error;
         return client.from("stores").insert({
