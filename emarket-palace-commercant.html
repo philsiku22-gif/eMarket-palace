@@ -220,9 +220,18 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
         var user = res.data && res.data.user;
         if (!user) throw new Error("Vérifie ton email pour confirmer ton compte avant de te connecter.");
         currentUser = user;
-        if (mode === "signup"){
-          return client.from("profiles").upsert({ id: user.id, full_name: name || email.split("@")[0], role: "merchant" });
-        }
+        // Toujours s'assurer que la ligne profiles existe (upsert), que ce soit
+        // à l'inscription ou à la connexion. A l'inscription, tant que l'email
+        // n'est pas confirmé il n'y a pas encore de session active, donc cet
+        // upsert peut échouer silencieusement a ce moment-la ; refaire la
+        // tentative a chaque connexion reussie permet de se reparer tout seul.
+        return client.from("profiles")
+          .upsert({ id: user.id, full_name: name || email.split("@")[0], role: "merchant" })
+          .then(function(profRes){
+            if (profRes.error){
+              console.warn("Impossible de créer/mettre à jour le profil (sera retenté à la prochaine connexion) :", profRes.error);
+            }
+          });
       })
       .then(function(){
         headerSub.textContent = "Connecté comme " + email;
@@ -253,16 +262,29 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
     var store_name = document.getElementById("store_name").value.trim();
     var category = document.getElementById("store_category").value;
     var description = document.getElementById("store_description").value.trim();
+    if (!store_name || !category){
+      showMsg("Donne au moins un nom et une catégorie à ta boutique.", "error");
+      return;
+    }
+
     var btn = document.getElementById("btn-create-store");
     btn.disabled = true;
 
-    client.from("stores").insert({
-      merchant_id: currentUser.id,
-      store_name: store_name,
-      category: category,
-      description: description,
-      subscription_status: "pending"
-    }).select().single()
+    // Filet de sécurité : s'assurer que la ligne profiles existe avant de
+    // créer la boutique (stores.merchant_id pointe vers profiles.id, pas
+    // directement vers le compte) — sans ça l'insertion échoue en silence.
+    client.from("profiles")
+      .upsert({ id: currentUser.id, role: "merchant" })
+      .then(function(profRes){
+        if (profRes.error) throw profRes.error;
+        return client.from("stores").insert({
+          merchant_id: currentUser.id,
+          store_name: store_name,
+          category: category,
+          description: description,
+          subscription_status: "pending"
+        }).select().single();
+      })
       .then(function(res){
         if (res.error) throw res.error;
         myStore = res.data;
