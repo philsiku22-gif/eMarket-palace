@@ -128,11 +128,18 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
 
     <div id="panel-products">
       <div class="card" style="margin-bottom:14px">
-        <div class="sub" style="margin:0 0 4px">Ajouter un produit</div>
+        <div class="sub" style="margin:0 0 4px">Ajouter un produit au stock</div>
         <label>Nom du produit <input type="text" id="p-title" placeholder="Ex. Robe wax bleue"></label>
+        <label>Photo du produit <input type="file" id="p-image" accept="image/*"></label>
+        <div id="p-image-preview" class="hidden" style="width:72px;height:72px;border-radius:10px;overflow:hidden;border:1px solid var(--border)"></div>
         <label>Prix ($) <input type="number" id="p-price" min="0" step="0.01" placeholder="25"></label>
+        <label>Quantité en stock <input type="number" id="p-stock" min="0" step="1" value="1"></label>
         <label>Description <textarea id="p-description" placeholder="Taille, matière, couleur..."></textarea></label>
-        <button id="btn-add-product">Ajouter le produit</button>
+        <label style="flex-direction:row; align-items:center; gap:8px">
+          <input type="checkbox" id="p-vitrine" checked style="width:auto; padding:0">
+          <span>Mettre en vitrine dans la galerie 3D</span>
+        </label>
+        <button id="btn-add-product">Ajouter au stock</button>
       </div>
       <div class="card" id="products-list"><div class="loading">Chargement...</div></div>
     </div>
@@ -322,30 +329,66 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
     loadOrders();
   });
 
+  var pImageInput = document.getElementById("p-image");
+  var pImagePreview = document.getElementById("p-image-preview");
+  pImageInput.addEventListener("change", function(){
+    var file = pImageInput.files && pImageInput.files[0];
+    if (!file){ pImagePreview.classList.add("hidden"); pImagePreview.innerHTML = ""; return; }
+    var url = URL.createObjectURL(file);
+    pImagePreview.innerHTML = '<img src="' + url + '" style="width:100%;height:100%;object-fit:cover">';
+    pImagePreview.classList.remove("hidden");
+  });
+
+  function uploadProductImage(file){
+    var ext = (file.name.split(".").pop() || "jpg").toLowerCase().replace(/[^a-z0-9]/g, "") || "jpg";
+    var path = myStore.id + "/" + Date.now() + "-" + Math.random().toString(36).slice(2) + "." + ext;
+    return client.storage.from("product-images").upload(path, file)
+      .then(function(res){
+        if (res.error) throw res.error;
+        var pub = client.storage.from("product-images").getPublicUrl(path);
+        return pub.data.publicUrl;
+      });
+  }
+
   document.getElementById("btn-add-product").addEventListener("click", function(){
     showMsg("", "");
     var title = document.getElementById("p-title").value.trim();
     var price = parseFloat(document.getElementById("p-price").value);
     var description = document.getElementById("p-description").value.trim();
+    var stock = parseInt(document.getElementById("p-stock").value, 10);
+    var enVitrine = document.getElementById("p-vitrine").checked;
+    var imageFile = pImageInput.files && pImageInput.files[0];
     if (!title || isNaN(price)){
       showMsg("Donne au moins un nom et un prix valides.", "error");
       return;
     }
+    if (isNaN(stock) || stock < 0) stock = 0;
     var btn = document.getElementById("btn-add-product");
     btn.disabled = true;
 
-    client.from("products").insert({
-      store_id: myStore.id,
-      title: title,
-      price: price,
-      description: description,
-      is_active: true
-    })
+    (imageFile ? uploadProductImage(imageFile) : Promise.resolve(null))
+      .then(function(imageUrl){
+        return client.from("products").insert({
+          store_id: myStore.id,
+          title: title,
+          price: price,
+          description: description,
+          is_active: true,
+          stock_quantity: stock,
+          en_vitrine: enVitrine,
+          image_url: imageUrl
+        });
+      })
       .then(function(res){
         if (res.error) throw res.error;
         document.getElementById("p-title").value = "";
         document.getElementById("p-price").value = "";
+        document.getElementById("p-stock").value = "1";
         document.getElementById("p-description").value = "";
+        document.getElementById("p-vitrine").checked = true;
+        pImageInput.value = "";
+        pImagePreview.classList.add("hidden");
+        pImagePreview.innerHTML = "";
         loadProducts();
       })
       .catch(function(err){ showMsg(translateError(err), "error"); })
@@ -367,14 +410,58 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
         products.forEach(function(p){
           var row = document.createElement("div");
           row.className = "item-row";
+          row.style.alignItems = "flex-start";
           var price = Number(p.price);
-          row.innerHTML =
-            '<div class="item-info">' +
-              '<div class="name">' + escapeHtml(p.title) + '</div>' +
-              '<div class="meta">' + (isNaN(price) ? "" : price.toLocaleString("fr-FR") + " $") + '</div>' +
+          var stock = (p.stock_quantity == null) ? 0 : p.stock_quantity;
+
+          var thumb = document.createElement("div");
+          thumb.style.cssText = "width:52px;height:52px;border-radius:9px;overflow:hidden;border:1px solid var(--border);flex:none;background:var(--bg);display:flex;align-items:center;justify-content:center;font-size:.7rem;color:var(--muted)";
+          if (p.image_url){
+            thumb.innerHTML = '<img src="' + escapeHtml(p.image_url) + '" style="width:100%;height:100%;object-fit:cover">';
+          } else {
+            thumb.textContent = "Pas de photo";
+          }
+
+          var info = document.createElement("div");
+          info.className = "item-info";
+          info.innerHTML =
+            '<div class="name">' + escapeHtml(p.title) + '</div>' +
+            '<div class="meta">' + (isNaN(price) ? "" : price.toLocaleString("fr-FR") + " $") + '</div>' +
+            '<div class="meta" style="margin-top:4px">' +
+              (stock > 0
+                ? '<span class="pill active">Stock : ' + stock + '</span>'
+                : '<span class="pill" style="color:var(--danger); border-color:var(--danger)">Rupture de stock</span>') +
+              ' <span class="pill' + (p.en_vitrine ? ' active' : '') + '">' +
+                (p.en_vitrine ? "En vitrine (galerie 3D)" : "Pas en vitrine") +
+              '</span>' +
             '</div>';
+
+          var stockRow = document.createElement("div");
+          stockRow.style.cssText = "display:flex; gap:6px; align-items:center; margin-top:6px";
+          var stockInput = document.createElement("input");
+          stockInput.type = "number";
+          stockInput.min = "0";
+          stockInput.step = "1";
+          stockInput.value = stock;
+          stockInput.style.cssText = "width:70px; padding:4px 8px; font-size:.82rem";
+          var stockBtn = document.createElement("button");
+          stockBtn.textContent = "Mettre à jour le stock";
+          stockBtn.style.cssText = "font-size:.78rem; padding:6px 10px";
+          stockBtn.addEventListener("click", function(){
+            var newStock = parseInt(stockInput.value, 10);
+            if (isNaN(newStock) || newStock < 0) newStock = 0;
+            client.from("products").update({ stock_quantity: newStock }).eq("id", p.id)
+              .then(function(res2){ if (res2.error) throw res2.error; loadProducts(); })
+              .catch(function(err){ showMsg(translateError(err), "error"); });
+          });
+          stockRow.appendChild(stockInput);
+          stockRow.appendChild(stockBtn);
+          info.appendChild(stockRow);
+
           var actions = document.createElement("div");
           actions.className = "actions";
+          actions.style.cssText = "display:flex; flex-direction:column; gap:6px; align-items:flex-end";
+
           var togglePill = document.createElement("span");
           togglePill.className = "pill" + (p.is_active ? " active" : "");
           togglePill.textContent = p.is_active ? "En ligne" : "Masqué";
@@ -384,6 +471,17 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
               .then(function(res2){ if (res2.error) throw res2.error; loadProducts(); })
               .catch(function(err){ showMsg(translateError(err), "error"); });
           });
+
+          var vitrineToggle = document.createElement("span");
+          vitrineToggle.className = "pill" + (p.en_vitrine ? " active" : "");
+          vitrineToggle.textContent = p.en_vitrine ? "Retirer de la vitrine" : "Mettre en vitrine";
+          vitrineToggle.style.cursor = "pointer";
+          vitrineToggle.addEventListener("click", function(){
+            client.from("products").update({ en_vitrine: !p.en_vitrine }).eq("id", p.id)
+              .then(function(res2){ if (res2.error) throw res2.error; loadProducts(); })
+              .catch(function(err){ showMsg(translateError(err), "error"); });
+          });
+
           var delBtn = document.createElement("button");
           delBtn.className = "danger";
           delBtn.textContent = "Supprimer";
@@ -393,7 +491,11 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
               .catch(function(err){ showMsg(translateError(err), "error"); });
           });
           actions.appendChild(togglePill);
+          actions.appendChild(vitrineToggle);
           actions.appendChild(delBtn);
+
+          row.appendChild(thumb);
+          row.appendChild(info);
           row.appendChild(actions);
           area.appendChild(row);
         });
