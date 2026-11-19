@@ -747,6 +747,19 @@ function decrementStock(productId, qty){
     });
 }
 
+// Remet en stock les quantités déjà décrémentées quand la commande échoue
+// ensuite (ex. erreur à la création de la commande) : on relit la valeur
+// actuelle et on la réincrémente, pour ne pas perdre du stock "orphelin"
+// sans commande correspondante.
+function restoreStock(productId, qty){
+  return client.from("products").select("stock_quantity").eq("id", productId).single()
+    .then(function(res){
+      if (res.error) throw res.error;
+      var current = (res.data.stock_quantity == null) ? 0 : res.data.stock_quantity;
+      return client.from("products").update({ stock_quantity: current + qty }).eq("id", productId);
+    });
+}
+
 function submitOrder(){
   showCartMsg("", "");
   var btn = document.getElementById("checkout-btn");
@@ -760,9 +773,14 @@ function submitOrder(){
   // On réserve le stock de chaque produit avant de créer la commande, l'un
   // après l'autre, pour simuler le retrait physique d'un vrai stock de
   // boutique. Si l'un d'eux échoue (rupture entre-temps), on arrête tout
-  // sans créer la commande.
+  // sans créer la commande. Si la commande elle-même échoue ensuite (erreur
+  // base de données), on remet en stock ce qui avait déjà été décrémenté,
+  // pour ne jamais perdre du stock sans commande derrière.
+  var decremented = [];
   cartItems.reduce(function(chain, it){
-    return chain.then(function(){ return decrementStock(it.product.id, it.qty); });
+    return chain.then(function(){
+      return decrementStock(it.product.id, it.qty).then(function(){ decremented.push(it); });
+    });
   }, Promise.resolve())
     .then(function(){
       return client.from("orders").insert({
@@ -788,6 +806,13 @@ function submitOrder(){
     })
     .catch(function(err){
       showCartMsg(err.message || String(err), "error");
+      if (decremented.length > 0){
+        decremented.reduce(function(chain, it){
+          return chain.then(function(){ return restoreStock(it.product.id, it.qty); });
+        }, Promise.resolve()).catch(function(restoreErr){
+          console.warn("Impossible de remettre le stock en place après l'échec de la commande :", restoreErr);
+        });
+      }
     })
     .finally(function(){
       btn.disabled = false;
