@@ -582,33 +582,52 @@ function openStore(store){
   area.innerHTML = '<div class="empty">Chargement...</div>';
   panel.classList.add("open");
 
-  client.from("products").select("*").eq("store_id", store.id).eq("is_active", true)
+  client.from("products").select("*").eq("store_id", store.id).eq("is_active", true).eq("en_vitrine", true)
     .then(function(res){
       if (res.error) throw res.error;
       var products = res.data || [];
       if (products.length === 0){
-        area.innerHTML = '<div class="empty">Cette boutique n\'a pas encore ajouté de produits.</div>';
+        area.innerHTML = '<div class="empty">Cette boutique n\'a pas encore mis de produits en vitrine.</div>';
         return;
       }
       area.innerHTML = "";
       products.forEach(function(p){
         var price = Number(p.price);
+        var stock = (p.stock_quantity == null) ? 0 : p.stock_quantity;
         var card = document.createElement("div");
         card.className = "pcard";
+        var thumbHtml = p.image_url
+          ? '<div style="width:52px;height:52px;border-radius:9px;overflow:hidden;flex:none;border:1px solid #352f27"><img src="' + escapeHtml(p.image_url) + '" style="width:100%;height:100%;object-fit:cover"></div>'
+          : "";
         card.innerHTML =
+          thumbHtml +
           '<div class="info">' +
             '<div class="name">' + escapeHtml(p.title) + '</div>' +
             '<div class="price">' + (isNaN(price) ? "" : price.toLocaleString("fr-FR") + " $") + '</div>' +
             (p.description ? '<div class="d">' + escapeHtml(p.description) + '</div>' : "") +
+            (stock > 0
+              ? '<div class="d">Stock : ' + stock + '</div>'
+              : '<div class="d" style="color:#e2715c">Rupture de stock</div>') +
           '</div>';
         var btn = document.createElement("button");
         btn.className = "addbtn";
-        btn.textContent = "Ajouter";
-        btn.addEventListener("click", function(){
-          addToCart(p, store);
-          btn.textContent = "Ajouté ✓";
-          setTimeout(function(){ btn.textContent = "Ajouter"; }, 900);
-        });
+        if (stock <= 0){
+          btn.textContent = "Rupture de stock";
+          btn.disabled = true;
+        } else {
+          btn.textContent = "Ajouter";
+          btn.addEventListener("click", function(){
+            var already = cart[p.id] ? cart[p.id].qty : 0;
+            if (already >= stock){
+              btn.textContent = "Stock max atteint";
+              setTimeout(function(){ btn.textContent = "Ajouter"; }, 900);
+              return;
+            }
+            addToCart(p, store);
+            btn.textContent = "Ajouté ✓";
+            setTimeout(function(){ btn.textContent = "Ajouter"; }, 900);
+          });
+        }
         card.appendChild(btn);
         area.appendChild(card);
       });
@@ -623,6 +642,8 @@ function addToCart(product, store){
   if (!cart[product.id]){
     cart[product.id] = { product: product, store: store, qty: 0 };
   }
+  var stock = (product.stock_quantity == null) ? 0 : product.stock_quantity;
+  if (cart[product.id].qty >= stock) return;
   cart[product.id].qty += 1;
   renderCart();
 }
@@ -630,6 +651,10 @@ function addToCart(product, store){
 function changeQty(productId, delta){
   var item = cart[productId];
   if (!item) return;
+  if (delta > 0){
+    var stock = (item.product.stock_quantity == null) ? 0 : item.product.stock_quantity;
+    if (item.qty >= stock) return;
+  }
   item.qty += delta;
   if (item.qty <= 0) delete cart[productId];
   renderCart();
@@ -695,6 +720,33 @@ document.getElementById("checkout-btn").addEventListener("click", function(){
   submitOrder();
 });
 
+// Décrémente le stock d'un produit de façon sûre : on relit le stock actuel,
+// puis on met à jour en conditionnant sur ce stock lu (.eq sur l'ancienne
+// valeur) pour détecter une vente concurrente entre-temps. Si la mise à jour
+// ne touche aucune ligne, c'est qu'un autre acheteur a pris le stock avant
+// nous : on lève une erreur claire plutôt que de passer en stock négatif.
+function decrementStock(productId, qty){
+  return client.from("products").select("id, title, stock_quantity").eq("id", productId).single()
+    .then(function(res){
+      if (res.error) throw res.error;
+      var current = (res.data.stock_quantity == null) ? 0 : res.data.stock_quantity;
+      if (current < qty){
+        throw new Error('Stock insuffisant pour "' + res.data.title + '" (il reste ' + current + ').');
+      }
+      return client.from("products")
+        .update({ stock_quantity: current - qty })
+        .eq("id", productId)
+        .eq("stock_quantity", current)
+        .select();
+    })
+    .then(function(res){
+      if (res.error) throw res.error;
+      if (!res.data || res.data.length === 0){
+        throw new Error("Le stock a changé pendant ta commande, réessaie.");
+      }
+    });
+}
+
 function submitOrder(){
   showCartMsg("", "");
   var btn = document.getElementById("checkout-btn");
@@ -703,17 +755,27 @@ function submitOrder(){
 
   var payment_method = document.getElementById("payment-method").value;
   var total = cartTotal();
+  var cartItems = Object.values(cart);
 
-  client.from("orders").insert({
-    buyer_id: currentUser.id,
-    total_amount: total,
-    status: "paid",
-    payment_method: payment_method
-  }).select().single()
+  // On réserve le stock de chaque produit avant de créer la commande, l'un
+  // après l'autre, pour simuler le retrait physique d'un vrai stock de
+  // boutique. Si l'un d'eux échoue (rupture entre-temps), on arrête tout
+  // sans créer la commande.
+  cartItems.reduce(function(chain, it){
+    return chain.then(function(){ return decrementStock(it.product.id, it.qty); });
+  }, Promise.resolve())
+    .then(function(){
+      return client.from("orders").insert({
+        buyer_id: currentUser.id,
+        total_amount: total,
+        status: "paid",
+        payment_method: payment_method
+      }).select().single();
+    })
     .then(function(res){
       if (res.error) throw res.error;
       var order = res.data;
-      var items = Object.values(cart).map(function(it){
+      var items = cartItems.map(function(it){
         return { order_id: order.id, product_id: it.product.id, quantity: it.qty, unit_price: it.product.price };
       });
       return client.from("order_items").insert(items);
