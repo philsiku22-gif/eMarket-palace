@@ -174,21 +174,39 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
         var user = res.data && res.data.user;
         if (!user) throw new Error("Compte créé, mais aucune session n'a été retournée.");
         currentUserId = user.id;
+        var hasSession = !!(res.data && res.data.session);
+
+        if (!hasSession){
+          // Email de confirmation requis : tant qu'il n'est pas confirmé, il n'y a
+          // pas encore de session active, donc toute écriture (profil, boutique)
+          // serait bloquée par la sécurité de la base de données. On ne tente pas
+          // ces écritures maintenant pour éviter une fausse erreur ; l'utilisateur
+          // les terminera après confirmation, depuis la page "Espace commerçant"
+          // (qui crée/retente automatiquement le profil à la connexion).
+          return "no-session";
+        }
 
         return client.from("profiles").upsert({
           id: user.id,
           full_name: full_name,
           role: "merchant"
+        }).then(function(profRes){
+          if (profRes.error) throw profRes.error;
+          return "session";
         });
       })
-      .then(function(res){
-        if (res && res.error) throw res.error;
+      .then(function(outcome){
+        if (outcome === "no-session"){
+          setStep(3);
+          formAccount.classList.add("hidden");
+          document.getElementById("done-title").textContent = "Compte créé";
+          document.getElementById("done-sub").textContent = "Vérifie ton email pour confirmer ton compte, puis connecte-toi sur la page \"Espace commerçant\" pour créer ta boutique.";
+          panelDone.classList.remove("hidden");
+          return;
+        }
         setStep(2);
         formAccount.classList.add("hidden");
         formStore.classList.remove("hidden");
-        if (!res) {
-          showMsg("Compte créé. Vérifie ton email pour confirmer avant de pouvoir créer ta boutique.", "ok");
-        }
       })
       .catch(function(err){
         showMsg(translateError(err), "error");
