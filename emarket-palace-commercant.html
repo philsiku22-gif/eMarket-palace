@@ -510,39 +510,77 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
       controls.enablePan = false;
       controls.update();
 
-      scene.add(new THREE.HemisphereLight(0xfff3df, 0x1a1712, 0.75));
-      var sun = new THREE.DirectionalLight(0xffe9c7, 0.85);
+      scene.add(new THREE.HemisphereLight(0xcfd8e8, 0x1a1712, 0.55));
+      var sun = new THREE.DirectionalLight(0xfff0d8, 0.5);
       sun.position.set(6, 12, 6);
       sun.castShadow = true;
       sun.shadow.mapSize.set(1024,1024);
       scene.add(sun);
 
-      // sol (béton d'entrepôt)
+      // sol (béton d'entrepôt, texture procédurale)
       var floor = new THREE.Mesh(
         new THREE.PlaneGeometry(26, 20),
-        new THREE.MeshStandardMaterial({ color:0x2b2a28, roughness:0.95 })
+        new THREE.MeshStandardMaterial({ map: concreteTexture(), roughness:0.95 })
       );
       floor.rotation.x = -Math.PI/2;
       floor.receiveShadow = true;
       scene.add(floor);
 
-      // mur du fond
-      var backWall = new THREE.Mesh(
-        new THREE.PlaneGeometry(26, 8),
-        new THREE.MeshStandardMaterial({ color:0x1e1c18, roughness:0.95 })
+      // bande de sécurité jaune/noire au sol, près de l'entrée (comme dans un vrai entrepôt)
+      var stripeCanvas = document.createElement("canvas");
+      stripeCanvas.width = 64; stripeCanvas.height = 16;
+      var sctx = stripeCanvas.getContext("2d");
+      sctx.fillStyle = "#1a1712"; sctx.fillRect(0,0,64,16);
+      sctx.fillStyle = "#d8a93f";
+      for (var sx = -16; sx < 64; sx += 16){
+        sctx.save(); sctx.translate(sx,0); sctx.rotate(0.4);
+        sctx.fillRect(0,-20,8,56);
+        sctx.restore();
+      }
+      var stripeTex = repeatTex(stripeCanvas, 6, 1);
+      var safetyStripe = new THREE.Mesh(
+        new THREE.PlaneGeometry(22, 0.4),
+        new THREE.MeshBasicMaterial({ map: stripeTex })
       );
+      safetyStripe.rotation.x = -Math.PI/2;
+      safetyStripe.position.set(0, 0.01, 7.5);
+      scene.add(safetyStripe);
+
+      var wallTex = wallTexture();
+      var wallMat = new THREE.MeshStandardMaterial({ map: wallTex, roughness:0.9 });
+
+      // mur du fond
+      var backWall = new THREE.Mesh(new THREE.PlaneGeometry(26, 8), wallMat);
       backWall.position.set(0, 4, -7);
       scene.add(backWall);
 
       // murs latéraux
       [-11, 11].forEach(function(x){
-        var sw = new THREE.Mesh(
-          new THREE.PlaneGeometry(14, 8),
-          new THREE.MeshStandardMaterial({ color:0x201e1a, roughness:0.95 })
-        );
+        var sw = new THREE.Mesh(new THREE.PlaneGeometry(14, 8), wallMat);
         sw.position.set(x, 4, 0);
         sw.rotation.y = x < 0 ? Math.PI/2 : -Math.PI/2;
         scene.add(sw);
+      });
+
+      // plafond sombre + rampes lumineuses suspendues façon entrepôt
+      var ceiling = new THREE.Mesh(
+        new THREE.PlaneGeometry(26, 20),
+        new THREE.MeshStandardMaterial({ color:0x0d0c0a, roughness:1 })
+      );
+      ceiling.rotation.x = Math.PI/2;
+      ceiling.position.y = 8;
+      scene.add(ceiling);
+
+      [-6, 0, 6].forEach(function(x){
+        var fixture = new THREE.Mesh(
+          new THREE.BoxGeometry(3.2, 0.15, 0.4),
+          new THREE.MeshStandardMaterial({ color:0x2a2822, emissive:0xfff3d6, emissiveIntensity:0.9 })
+        );
+        fixture.position.set(x, 7.6, -2);
+        scene.add(fixture);
+        var lamp = new THREE.PointLight(0xfff0d0, 0.55, 14, 2);
+        lamp.position.set(x, 7.3, -2);
+        scene.add(lamp);
       });
 
       shelfGroup = new THREE.Group();
@@ -690,6 +728,85 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
       return tex;
     }
 
+    /* ---- textures procédurales (aucune image externe nécessaire) pour que
+       le sol, les murs et les étagères ressemblent à de vraies surfaces au
+       lieu d'aplats de couleur plate. ---- */
+    function speckle(ctx, w, h, count, colors){
+      for (var i = 0; i < count; i++){
+        ctx.fillStyle = colors[Math.floor(Math.random() * colors.length)];
+        var x = Math.random() * w, y = Math.random() * h;
+        var s = 1 + Math.random() * 2.5;
+        ctx.globalAlpha = 0.25 + Math.random() * 0.35;
+        ctx.fillRect(x, y, s, s);
+      }
+      ctx.globalAlpha = 1;
+    }
+    function repeatTex(canvas, rx, ry){
+      var tex = new THREE.CanvasTexture(canvas);
+      tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+      tex.repeat.set(rx, ry);
+      tex.needsUpdate = true;
+      return tex;
+    }
+    function concreteTexture(){
+      var c = document.createElement("canvas"); c.width = c.height = 256;
+      var ctx = c.getContext("2d");
+      ctx.fillStyle = "#38362f"; ctx.fillRect(0, 0, 256, 256);
+      speckle(ctx, 256, 256, 1400, ["#2c2a25", "#45423a", "#504c42", "#242219"]);
+      // quelques fissures/joints
+      ctx.strokeStyle = "rgba(10,9,7,.5)"; ctx.lineWidth = 1.5;
+      for (var i = 0; i < 3; i++){
+        ctx.beginPath();
+        var sx = Math.random()*256, sy = Math.random()*256;
+        ctx.moveTo(sx, sy);
+        for (var j=0;j<4;j++) ctx.lineTo(sx + (Math.random()-0.5)*80, sy + (Math.random()-0.5)*80);
+        ctx.stroke();
+      }
+      return repeatTex(c, 7, 5);
+    }
+    function wallTexture(){
+      var c = document.createElement("canvas"); c.width = 256; c.height = 128;
+      var ctx = c.getContext("2d");
+      ctx.fillStyle = "#211f1a"; ctx.fillRect(0, 0, 256, 128);
+      speckle(ctx, 256, 128, 500, ["#1a1915", "#2a2822", "#302d26"]);
+      // panneaux corrugués verticaux
+      ctx.strokeStyle = "rgba(0,0,0,.35)"; ctx.lineWidth = 2;
+      for (var x = 0; x <= 256; x += 32){
+        ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, 128); ctx.stroke();
+      }
+      return repeatTex(c, 5, 2);
+    }
+    function metalTexture(){
+      var c = document.createElement("canvas"); c.width = 128; c.height = 128;
+      var ctx = c.getContext("2d");
+      ctx.fillStyle = "#5f5a4e"; ctx.fillRect(0, 0, 128, 128);
+      for (var y = 0; y < 128; y += 1){
+        ctx.fillStyle = Math.random() > 0.5 ? "rgba(255,255,255,.05)" : "rgba(0,0,0,.08)";
+        ctx.fillRect(0, y, 128, 1);
+      }
+      return repeatTex(c, 2, 2);
+    }
+    function cardboardTexture(title){
+      var c = document.createElement("canvas"); c.width = 200; c.height = 200;
+      var ctx = c.getContext("2d");
+      ctx.fillStyle = "#c8a06c"; ctx.fillRect(0, 0, 200, 200);
+      speckle(ctx, 200, 200, 200, ["#b28e5c", "#d4b07e", "#a9835399"]);
+      ctx.strokeStyle = "rgba(90,60,25,.55)"; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(100, 0); ctx.lineTo(100, 200); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0, 14); ctx.lineTo(200, 14); ctx.stroke();
+      return new THREE.CanvasTexture(c);
+    }
+    function woodTexture(){
+      var c = document.createElement("canvas"); c.width = 256; c.height = 128;
+      var ctx = c.getContext("2d");
+      ctx.fillStyle = "#6b4a2e"; ctx.fillRect(0, 0, 256, 128);
+      for (var y = 0; y < 128; y += 3){
+        ctx.fillStyle = "rgba(" + (60+Math.random()*40|0) + "," + (35+Math.random()*25|0) + "," + (18+Math.random()*12|0) + ",.6)";
+        ctx.fillRect(0, y, 256, 2 + Math.random()*2);
+      }
+      return repeatTex(c, 2, 1);
+    }
+
     function clearShelves(){
       while (shelfGroup.children.length) shelfGroup.remove(shelfGroup.children[0]);
       clickable = [];
@@ -699,16 +816,25 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
       clearShelves();
       currentProducts = products;
 
+      var metalTex = metalTexture();
+      var woodTex = woodTexture();
+
       // comptoir "+ Nouveau produit", toujours présent, à gauche de la scène
       var counter = new THREE.Group();
       counter.position.set(-7.5, 0, 1);
       var baseGeo = new THREE.BoxGeometry(2.4, 1.1, 1.1);
-      var baseMat = new THREE.MeshStandardMaterial({ color:0x3fae84, roughness:0.6 });
+      var baseMat = new THREE.MeshStandardMaterial({ map: woodTex, roughness:0.7 });
       var base = new THREE.Mesh(baseGeo, baseMat);
       base.position.y = 0.55;
       base.castShadow = true;
       base.receiveShadow = true;
       counter.add(base);
+      var counterTrim = new THREE.Mesh(
+        new THREE.BoxGeometry(2.42, 0.08, 1.12),
+        new THREE.MeshStandardMaterial({ color:0x3fae84, emissive:0x3fae84, emissiveIntensity:0.3 })
+      );
+      counterTrim.position.y = 1.1;
+      counter.add(counterTrim);
       var signTex = textTexture("+ Nouveau produit", "Ajouter au stock", "#0b1410", "#f2eee6");
       var sign = new THREE.Mesh(
         new THREE.PlaneGeometry(2.1, 1.0),
@@ -739,48 +865,67 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
         var stock = (p.stock_quantity == null) ? 0 : p.stock_quantity;
         var frameColor = p.en_vitrine ? 0x3fae84 : 0x6b645c;
 
-        // cadre métallique de l'étagère
-        var frameGeo = new THREE.BoxGeometry(2.0, 2.2, 0.5);
-        var frameMat = new THREE.MeshStandardMaterial({ color:0x4a443a, roughness:0.8, metalness:0.3 });
-        var frame = new THREE.Mesh(frameGeo, frameMat);
-        frame.position.y = 1.1;
-        frame.castShadow = true;
-        frame.receiveShadow = true;
-        group.add(frame);
+        // vraie étagère métallique à 3 niveaux (montants + planches), comme
+        // un rayonnage d'entrepôt réel, plutôt qu'un simple bloc plein.
+        var rackW = 1.9, rackD = 0.6, rackH = 2.3;
+        var poleMat = new THREE.MeshStandardMaterial({ map: metalTex, roughness:0.6, metalness:0.5 });
+        var plankMat = new THREE.MeshStandardMaterial({ map: woodTex, roughness:0.8 });
+        [[-rackW/2,-rackD/2], [rackW/2,-rackD/2], [-rackW/2,rackD/2], [rackW/2,rackD/2]].forEach(function(pos){
+          var pole = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, rackH, 8), poleMat);
+          pole.position.set(pos[0], rackH/2, pos[1]);
+          pole.castShadow = true;
+          group.add(pole);
+        });
+        var shelfYs = [0.05, 1.05, rackH];
+        shelfYs.forEach(function(y){
+          var plank = new THREE.Mesh(new THREE.BoxGeometry(rackW + 0.08, 0.06, rackD + 0.08), plankMat);
+          plank.position.y = y;
+          plank.castShadow = true;
+          plank.receiveShadow = true;
+          group.add(plank);
+        });
+        // large boîte invisible pour faciliter le clic (zone de détection)
+        var hitbox = new THREE.Mesh(
+          new THREE.BoxGeometry(rackW + 0.1, rackH, rackD + 0.3),
+          new THREE.MeshBasicMaterial({ transparent:true, opacity:0 })
+        );
+        hitbox.position.y = rackH/2;
+        group.add(hitbox);
 
         // liseré de couleur (vert = en vitrine, gris = pas en vitrine)
         var stripe = new THREE.Mesh(
-          new THREE.BoxGeometry(2.05, 0.1, 0.52),
-          new THREE.MeshStandardMaterial({ color: frameColor, emissive: frameColor, emissiveIntensity:0.3 })
+          new THREE.BoxGeometry(rackW + 0.1, 0.07, 0.07),
+          new THREE.MeshStandardMaterial({ color: frameColor, emissive: frameColor, emissiveIntensity:0.4 })
         );
-        stripe.position.y = 2.25;
+        stripe.position.set(0, rackH + 0.08, rackD/2 + 0.04);
         group.add(stripe);
 
-        // caisses empilées représentant le stock (jusqu'à 6 visibles)
+        // caisses en carton empilées sur l'étagère du milieu, représentant le stock (jusqu'à 6 visibles)
         var crateCount = Math.min(stock, 6);
-        var crateMat = new THREE.MeshStandardMaterial({ color:0xb08a55, roughness:0.85 });
+        var crateMat = new THREE.MeshStandardMaterial({ map: cardboardTexture(), roughness:0.9 });
         for (var c = 0; c < crateCount; c++){
           var cc = c % 3;
           var rr = Math.floor(c / 3);
           var crate = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.4, 0.4), crateMat);
-          crate.position.set(-0.55 + cc * 0.55, 0.35 + rr * 0.45, 0.02);
+          crate.position.set(-0.55 + cc * 0.55, 1.05 + 0.23 + rr * 0.44, 0.02);
           crate.castShadow = true;
+          crate.receiveShadow = true;
           group.add(crate);
         }
         if (stock <= 0){
           var emptyTex = textTexture("Rupture", p.title, "#2a1512", "#e2715c");
           var emptySign = new THREE.Mesh(new THREE.PlaneGeometry(1.7, 0.8), new THREE.MeshBasicMaterial({ map: emptyTex, transparent:true }));
-          emptySign.position.set(0, 2.75, 0.26);
+          emptySign.position.set(0, rackH + 0.55, rackD/2 + 0.04);
           group.add(emptySign);
         } else {
           var tex = textTexture(p.title, (isNaN(Number(p.price)) ? "" : Number(p.price).toLocaleString("fr-FR") + " $") + " · stock " + stock, "#1a1814", "#f2eee6");
           var labelSign = new THREE.Mesh(new THREE.PlaneGeometry(1.9, 0.9), new THREE.MeshBasicMaterial({ map: tex, transparent:true }));
-          labelSign.position.set(0, 2.75, 0.26);
+          labelSign.position.set(0, rackH + 0.55, rackD/2 + 0.04);
           group.add(labelSign);
         }
 
         shelfGroup.add(group);
-        clickable.push({ mesh: frame, kind: "edit", product: p });
+        clickable.push({ mesh: hitbox, kind: "edit", product: p });
       });
     }
 
