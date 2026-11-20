@@ -510,13 +510,13 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
       controls.enablePan = false;
       controls.update();
 
-      scene.add(new THREE.HemisphereLight(0xffffff, 0xbcb6a4, 1.1));
-      var sun = new THREE.DirectionalLight(0xfff6e0, 1.0);
+      scene.add(new THREE.HemisphereLight(0xf4f1e8, 0xa8a291, 0.75));
+      var sun = new THREE.DirectionalLight(0xfff6e0, 0.6);
       sun.position.set(6, 12, 6);
       sun.castShadow = true;
       sun.shadow.mapSize.set(1024,1024);
       scene.add(sun);
-      var fill = new THREE.DirectionalLight(0xffffff, 0.45);
+      var fill = new THREE.DirectionalLight(0xffffff, 0.25);
       fill.position.set(-8, 8, 4);
       scene.add(fill);
 
@@ -577,11 +577,11 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
       [-6, 0, 6].forEach(function(x){
         var fixture = new THREE.Mesh(
           new THREE.BoxGeometry(3.2, 0.15, 0.4),
-          new THREE.MeshStandardMaterial({ color:0xffffff, emissive:0xfffaec, emissiveIntensity:1.6 })
+          new THREE.MeshStandardMaterial({ color:0xffffff, emissive:0xfffaec, emissiveIntensity:0.9 })
         );
         fixture.position.set(x, 7.6, -2);
         scene.add(fixture);
-        var lamp = new THREE.PointLight(0xfff6e4, 1.1, 18, 2);
+        var lamp = new THREE.PointLight(0xfff6e4, 0.6, 16, 2);
         lamp.position.set(x, 7.3, -2);
         scene.add(lamp);
       });
@@ -756,10 +756,10 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
     function concreteTexture(){
       var c = document.createElement("canvas"); c.width = c.height = 256;
       var ctx = c.getContext("2d");
-      ctx.fillStyle = "#9b9686"; ctx.fillRect(0, 0, 256, 256);
-      speckle(ctx, 256, 256, 1400, ["#8d8878", "#aaa495", "#b5b0a0", "#817c6c"]);
+      ctx.fillStyle = "#8c8676"; ctx.fillRect(0, 0, 256, 256);
+      speckle(ctx, 256, 256, 1600, ["#7a7465", "#9b9687", "#a7a192", "#6b6558"]);
       // quelques fissures/joints
-      ctx.strokeStyle = "rgba(60,56,46,.35)"; ctx.lineWidth = 1.5;
+      ctx.strokeStyle = "rgba(50,46,38,.45)"; ctx.lineWidth = 1.5;
       for (var i = 0; i < 3; i++){
         ctx.beginPath();
         var sx = Math.random()*256, sy = Math.random()*256;
@@ -772,10 +772,10 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
     function wallTexture(){
       var c = document.createElement("canvas"); c.width = 256; c.height = 128;
       var ctx = c.getContext("2d");
-      ctx.fillStyle = "#dedad0"; ctx.fillRect(0, 0, 256, 128);
-      speckle(ctx, 256, 128, 500, ["#d4d0c4", "#e6e2d6", "#c9c5b8"]);
+      ctx.fillStyle = "#c7c1b1"; ctx.fillRect(0, 0, 256, 128);
+      speckle(ctx, 256, 128, 500, ["#bbb5a4", "#d2cdbf", "#aca68f"]);
       // panneaux corrugués verticaux
-      ctx.strokeStyle = "rgba(90,85,70,.3)"; ctx.lineWidth = 2;
+      ctx.strokeStyle = "rgba(70,65,50,.4)"; ctx.lineWidth = 2;
       for (var x = 0; x <= 256; x += 32){
         ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, 128); ctx.stroke();
       }
