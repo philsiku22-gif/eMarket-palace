@@ -287,6 +287,52 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
   });
 
   libsReady.then(function(){
+    // ---- confirmation par email d'une révision de stock en attente ----
+    // (le marchand clique sur ce lien depuis l'email reçu après avoir demandé
+    // une mise à jour de stock ; Supabase connecte alors automatiquement ce
+    // nouvel onglet, on vérifie la demande en attente, puis on applique le
+    // changement seulement à ce moment-là)
+    (function handlePendingStockConfirmation(){
+      var confirmRef = new URLSearchParams(location.search).get("confirm_stock");
+      if (!confirmRef) return;
+      var raw = localStorage.getItem("emp_stock_confirm_pending");
+      var pending = null;
+      try { pending = raw ? JSON.parse(raw) : null; } catch (e) { pending = null; }
+      client.auth.getSession().then(function(res){
+        var session = res.data && res.data.session;
+        history.replaceState(null, "", location.pathname);
+        if (!session){
+          showMsg("Le lien de confirmation a expiré ou n'est plus valide. Reconnecte-toi pour réessayer.", "error");
+          return;
+        }
+        if (!pending || pending.ref !== confirmRef){
+          showMsg("Ce lien de confirmation a déjà été utilisé, a expiré, ou provient d'une autre demande.", "error");
+          return;
+        }
+        if (Date.now() - pending.requestedAt > 30 * 60 * 1000){
+          localStorage.removeItem("emp_stock_confirm_pending");
+          showMsg("Ce lien de confirmation a expiré (plus de 30 minutes). Refais la demande de mise à jour de stock.", "error");
+          return;
+        }
+        currentUser = session.user;
+        headerSub.textContent = "Connecté comme " + currentUser.email;
+        viewAuth.classList.add("hidden");
+        client.from("products").update({ stock_quantity: pending.newStock }).eq("id", pending.productId)
+          .then(function(res2){
+            if (res2.error) throw res2.error;
+            localStorage.removeItem("emp_stock_confirm_pending");
+            showMsg("Révision de stock confirmée par email : « " + pending.productTitle + " » → stock " + pending.newStock + ".", "ok");
+            loadMyStore();
+          })
+          .catch(function(err){
+            showMsg(translateError(err), "error");
+            loadMyStore();
+          });
+      }).catch(function(err){
+        showMsg(translateError(err), "error");
+      });
+    })();
+
     // ---- AUTH ----
     document.getElementById("tab-login").addEventListener("click", function(){
       mode = "login";
@@ -1161,6 +1207,28 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
       }
     }
 
+    // ---- procédure d'inventaire : toute révision de stock doit être
+    // confirmée par un lien reçu par email avant d'être appliquée ----
+    var STOCK_CONFIRM_KEY = "emp_stock_confirm_pending";
+
+    function requestStockConfirmationByEmail(p, newStock){
+      var ref = "sc" + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+      var redirectUrl = location.origin + location.pathname + "?confirm_stock=" + encodeURIComponent(ref);
+      return client.auth.signInWithOtp({
+        email: currentUser.email,
+        options: { emailRedirectTo: redirectUrl, shouldCreateUser: false }
+      }).then(function(res){
+        if (res.error) throw res.error;
+        localStorage.setItem(STOCK_CONFIRM_KEY, JSON.stringify({
+          ref: ref,
+          productId: p.id,
+          productTitle: p.title,
+          newStock: newStock,
+          requestedAt: Date.now()
+        }));
+      });
+    }
+
     function moveProductPosition(p, direction){
       var idx = currentProducts.findIndex(function(cp){ return cp.id === p.id; });
       if (idx === -1) return;
@@ -1236,13 +1304,19 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
       });
       document.getElementById("bo-btn-update-stock").addEventListener("click", function(){
         var btn = this;
-        armConfirm(btn, "Confirmer ce nouveau stock ?", "Mettre à jour le stock", function(){
-          var newStock = parseInt(document.getElementById("bo-e-stock").value, 10);
-          if (isNaN(newStock) || newStock < 0) newStock = 0;
-          client.from("products").update({ stock_quantity: newStock }).eq("id", p.id)
-            .then(function(res2){ if (res2.error) throw res2.error; closeBoPanel(); refreshBackoffice(); })
-            .catch(function(err){ panelMsg(translateError(err), "error"); });
-        });
+        var newStock = parseInt(document.getElementById("bo-e-stock").value, 10);
+        if (isNaN(newStock) || newStock < 0) newStock = 0;
+        if (newStock === stock){
+          panelMsg("Le stock est déjà à " + newStock + ".", "");
+          return;
+        }
+        btn.disabled = true;
+        requestStockConfirmationByEmail(p, newStock)
+          .then(function(){
+            panelMsg("Email de confirmation envoyé à " + currentUser.email + ". Ouvre le lien reçu pour valider cette révision de stock.", "ok");
+          })
+          .catch(function(err){ panelMsg(translateError(err), "error"); })
+          .finally(function(){ btn.disabled = false; });
       });
       document.getElementById("bo-btn-move-earlier").addEventListener("click", function(){
         var btn = this;
