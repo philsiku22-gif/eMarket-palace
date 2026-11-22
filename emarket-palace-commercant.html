@@ -1193,6 +1193,7 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
         '<div id="bo-panel-msg"></div>' +
         (p.image_url ? '<div id="bo-img-preview"><img src="' + escapeHtml(p.image_url) + '"></div>' : '<div style="font-size:.78rem; color:#a69d8f">Pas encore de photo pour ce produit.</div>') +
         '<label>' + (p.image_url ? "Changer la photo" : "Ajouter une photo") + ' <input type="file" id="bo-e-image" accept="image/*"></label>' +
+        '<div id="bo-image-save-wrap"></div>' +
         '<div style="display:flex; align-items:center; gap:8px; margin-top:-2px">' +
           '<span class="pill" id="bo-btn-move-earlier"' + (posIdx <= 0 ? ' style="opacity:.35; pointer-events:none"' : '') + '>◀ Plus tôt</span>' +
           '<span style="font-size:.72rem; color:#a69d8f; flex:1; text-align:center">Emplacement ' + (posIdx + 1) + ' / ' + posTotal + '</span>' +
@@ -1209,19 +1210,29 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
 
       document.getElementById("bo-e-image").addEventListener("change", function(){
         var file = this.files && this.files[0];
+        var wrap = document.getElementById("bo-image-save-wrap");
+        wrap.innerHTML = "";
         if (!file) return;
-        panelMsg("Envoi de la photo...", "");
-        uploadProductImage(file)
-          .then(function(imageUrl){
-            return client.from("products").update({ image_url: imageUrl }).eq("id", p.id);
-          })
-          .then(function(res2){
-            if (res2.error) throw res2.error;
-            panelMsg("Photo enregistrée.", "ok");
-            closeBoPanel();
-            refreshBackoffice();
-          })
-          .catch(function(err){ panelMsg(translateError(err), "error"); });
+        var saveBtn = document.createElement("button");
+        saveBtn.id = "bo-btn-save-image";
+        saveBtn.textContent = "Enregistrer la photo";
+        wrap.appendChild(saveBtn);
+        saveBtn.addEventListener("click", function(){
+          armConfirm(saveBtn, "Confirmer l'envoi de la photo ?", "Enregistrer la photo", function(){
+            panelMsg("Envoi de la photo...", "");
+            uploadProductImage(file)
+              .then(function(imageUrl){
+                return client.from("products").update({ image_url: imageUrl }).eq("id", p.id);
+              })
+              .then(function(res2){
+                if (res2.error) throw res2.error;
+                panelMsg("Photo enregistrée.", "ok");
+                closeBoPanel();
+                refreshBackoffice();
+              })
+              .catch(function(err){ panelMsg(translateError(err), "error"); });
+          });
+        });
       });
       document.getElementById("bo-btn-update-stock").addEventListener("click", function(){
         var btn = this;
@@ -1234,20 +1245,32 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
         });
       });
       document.getElementById("bo-btn-move-earlier").addEventListener("click", function(){
-        moveProductPosition(p, -1);
+        var btn = this;
+        armConfirm(btn, "Confirmer ?", "◀ Plus tôt", function(){ moveProductPosition(p, -1); });
       });
       document.getElementById("bo-btn-move-later").addEventListener("click", function(){
-        moveProductPosition(p, 1);
+        var btn = this;
+        armConfirm(btn, "Confirmer ?", "Plus tard ▶", function(){ moveProductPosition(p, 1); });
       });
       document.getElementById("bo-toggle-active").addEventListener("click", function(){
-        client.from("products").update({ is_active: !p.is_active }).eq("id", p.id)
-          .then(function(res2){ if (res2.error) throw res2.error; closeBoPanel(); refreshBackoffice(); })
-          .catch(function(err){ panelMsg(translateError(err), "error"); });
+        var btn = this;
+        var originalLabel = p.is_active ? "En ligne" : "Masqué";
+        var confirmLabel = p.is_active ? "Confirmer : masquer ?" : "Confirmer : mettre en ligne ?";
+        armConfirm(btn, confirmLabel, originalLabel, function(){
+          client.from("products").update({ is_active: !p.is_active }).eq("id", p.id)
+            .then(function(res2){ if (res2.error) throw res2.error; closeBoPanel(); refreshBackoffice(); })
+            .catch(function(err){ panelMsg(translateError(err), "error"); });
+        });
       });
       document.getElementById("bo-toggle-vitrine").addEventListener("click", function(){
-        client.from("products").update({ en_vitrine: !p.en_vitrine }).eq("id", p.id)
-          .then(function(res2){ if (res2.error) throw res2.error; closeBoPanel(); refreshBackoffice(); })
-          .catch(function(err){ panelMsg(translateError(err), "error"); });
+        var btn = this;
+        var originalLabel = p.en_vitrine ? "Retirer de la vitrine" : "Mettre en vitrine";
+        var confirmLabel = p.en_vitrine ? "Confirmer : retirer de la vitrine ?" : "Confirmer : mettre en vitrine ?";
+        armConfirm(btn, confirmLabel, originalLabel, function(){
+          client.from("products").update({ en_vitrine: !p.en_vitrine }).eq("id", p.id)
+            .then(function(res2){ if (res2.error) throw res2.error; closeBoPanel(); refreshBackoffice(); })
+            .catch(function(err){ panelMsg(translateError(err), "error"); });
+        });
       });
       document.getElementById("bo-btn-delete").addEventListener("click", function(){
         var btn = this;
