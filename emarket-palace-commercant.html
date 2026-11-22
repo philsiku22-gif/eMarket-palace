@@ -1139,6 +1139,28 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
       boPanel.classList.add("open");
     }
 
+    // demande une confirmation avant une action qui modifie le stock :
+    // le premier clic arme le bouton (change son texte), le second clic,
+    // dans les quelques secondes qui suivent, exécute réellement l'action.
+    function armConfirm(btn, confirmLabel, originalLabel, action){
+      if (btn.dataset.armed === "1"){
+        btn.dataset.armed = "0";
+        btn.textContent = originalLabel;
+        clearTimeout(btn._confirmTimeout);
+        panelMsg("", "");
+        action();
+      } else {
+        btn.dataset.armed = "1";
+        btn.textContent = confirmLabel;
+        panelMsg("Clique à nouveau pour confirmer.", "");
+        btn._confirmTimeout = setTimeout(function(){
+          btn.dataset.armed = "0";
+          btn.textContent = originalLabel;
+          panelMsg("", "");
+        }, 4000);
+      }
+    }
+
     function moveProductPosition(p, direction){
       var idx = currentProducts.findIndex(function(cp){ return cp.id === p.id; });
       if (idx === -1) return;
@@ -1202,11 +1224,14 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
           .catch(function(err){ panelMsg(translateError(err), "error"); });
       });
       document.getElementById("bo-btn-update-stock").addEventListener("click", function(){
-        var newStock = parseInt(document.getElementById("bo-e-stock").value, 10);
-        if (isNaN(newStock) || newStock < 0) newStock = 0;
-        client.from("products").update({ stock_quantity: newStock }).eq("id", p.id)
-          .then(function(res2){ if (res2.error) throw res2.error; closeBoPanel(); refreshBackoffice(); })
-          .catch(function(err){ panelMsg(translateError(err), "error"); });
+        var btn = this;
+        armConfirm(btn, "Confirmer ce nouveau stock ?", "Mettre à jour le stock", function(){
+          var newStock = parseInt(document.getElementById("bo-e-stock").value, 10);
+          if (isNaN(newStock) || newStock < 0) newStock = 0;
+          client.from("products").update({ stock_quantity: newStock }).eq("id", p.id)
+            .then(function(res2){ if (res2.error) throw res2.error; closeBoPanel(); refreshBackoffice(); })
+            .catch(function(err){ panelMsg(translateError(err), "error"); });
+        });
       });
       document.getElementById("bo-btn-move-earlier").addEventListener("click", function(){
         moveProductPosition(p, -1);
@@ -1225,9 +1250,12 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
           .catch(function(err){ panelMsg(translateError(err), "error"); });
       });
       document.getElementById("bo-btn-delete").addEventListener("click", function(){
-        client.from("products").delete().eq("id", p.id)
-          .then(function(res2){ if (res2.error) throw res2.error; closeBoPanel(); refreshBackoffice(); })
-          .catch(function(err){ panelMsg(translateError(err), "error"); });
+        var btn = this;
+        armConfirm(btn, "Confirmer la suppression ?", "Supprimer ce produit", function(){
+          client.from("products").delete().eq("id", p.id)
+            .then(function(res2){ if (res2.error) throw res2.error; closeBoPanel(); refreshBackoffice(); })
+            .catch(function(err){ panelMsg(translateError(err), "error"); });
+        });
       });
 
       boPanel.classList.add("open");
