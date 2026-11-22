@@ -108,6 +108,27 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
 #bo-panel-msg:empty{display:none}
 #bo-img-preview{width:64px;height:64px;border-radius:9px;overflow:hidden;border:1px solid #352f27}
 #bo-img-preview img{width:100%;height:100%;object-fit:cover}
+
+/* ---- menu flottant : processus en cours (ex. révision de stock en attente de confirmation par email) ---- */
+#process-menu-btn{
+  position:fixed; right:18px; bottom:18px; z-index:40;
+  width:46px; height:46px; border-radius:50%; border:1px solid var(--border);
+  background:var(--surface); color:var(--text); font-size:1.2rem; cursor:pointer;
+  display:flex; align-items:center; justify-content:center;
+  box-shadow:0 4px 16px rgba(0,0,0,.18);
+}
+#process-menu-badge{
+  position:absolute; top:-4px; right:-4px; min-width:16px; height:16px; padding:0 3px;
+  border-radius:999px; background:#e2715c; color:#fff; font-size:.62rem; font-weight:700;
+  display:flex; align-items:center; justify-content:center; line-height:1;
+}
+#process-menu-badge.hidden{display:none}
+#process-menu-panel{
+  position:fixed; right:18px; bottom:72px; z-index:40; width:min(300px,86vw);
+  background:var(--surface); border:1px solid var(--border); border-radius:12px;
+  padding:14px; box-shadow:0 8px 28px rgba(0,0,0,.22);
+}
+#process-menu-panel.hidden{display:none}
 </style>
 
 <div class="wrap">
@@ -161,6 +182,15 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
 
   <!-- DASHBOARD -->
   <div id="view-dashboard" class="hidden">
+    <button id="process-menu-btn" title="Processus en cours">⚙️<span id="process-menu-badge" class="hidden"></span></button>
+    <div id="process-menu-panel" class="hidden">
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px">
+        <strong style="font-size:.9rem">Processus en cours</strong>
+        <button id="process-menu-close" style="background:none; border:none; color:var(--muted); font-size:1.1rem; cursor:pointer; padding:0; line-height:1">×</button>
+      </div>
+      <div id="process-menu-body"></div>
+    </div>
+
     <div class="card store-banner">
       <div class="badge" id="db-badge">?</div>
       <div>
@@ -485,7 +515,42 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
       document.getElementById("db-store-cat").textContent = myStore.category;
       document.getElementById("bo-hud-title").textContent = myStore.store_name;
       initBackoffice();
+      renderProcessMenu();
     }
+
+    // ---- menu flottant "Processus en cours" ----
+    // affiche la révision de stock en attente d'une confirmation par email
+    // (si il y en a une) et permet de l'annuler.
+    function renderProcessMenu(){
+      var raw = localStorage.getItem("emp_stock_confirm_pending");
+      var pending = null;
+      try { pending = raw ? JSON.parse(raw) : null; } catch (e) { pending = null; }
+      var badge = document.getElementById("process-menu-badge");
+      var body = document.getElementById("process-menu-body");
+      if (pending){
+        badge.textContent = "1";
+        badge.classList.remove("hidden");
+        var mins = Math.max(0, Math.round((Date.now() - pending.requestedAt) / 60000));
+        body.innerHTML =
+          '<div style="font-weight:700; font-size:.85rem; margin-bottom:4px">Révision de stock en attente</div>' +
+          '<div style="font-size:.8rem; color:var(--muted); margin-bottom:10px">« ' + escapeHtml(pending.productTitle) + ' » → stock ' + pending.newStock + '<br>Email envoyé il y a ' + mins + (mins <= 1 ? " minute" : " minutes") + '.</div>' +
+          '<button id="btn-cancel-pending-stock" style="background:transparent; color:#e2715c; border:1px solid #e2715c; width:100%">Annuler la demande</button>';
+        document.getElementById("btn-cancel-pending-stock").addEventListener("click", function(){
+          localStorage.removeItem("emp_stock_confirm_pending");
+          renderProcessMenu();
+        });
+      } else {
+        badge.classList.add("hidden");
+        body.innerHTML = '<div style="font-size:.82rem; color:var(--muted)">Aucune procédure en attente.</div>';
+      }
+    }
+    document.getElementById("process-menu-btn").addEventListener("click", function(){
+      renderProcessMenu();
+      document.getElementById("process-menu-panel").classList.toggle("hidden");
+    });
+    document.getElementById("process-menu-close").addEventListener("click", function(){
+      document.getElementById("process-menu-panel").classList.add("hidden");
+    });
 
     // ---- TABS ----
     document.getElementById("tab-products").addEventListener("click", function(){
@@ -1355,6 +1420,7 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
         requestStockConfirmationByEmail(p, newStock)
           .then(function(){
             panelMsg("Email de confirmation envoyé à " + currentUser.email + ". Ouvre le lien reçu pour valider cette révision de stock.", "ok");
+            renderProcessMenu();
           })
           .catch(function(err){ panelMsg(translateError(err), "error"); })
           .finally(function(){ btn.disabled = false; });
