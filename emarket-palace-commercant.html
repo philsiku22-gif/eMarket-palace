@@ -292,6 +292,22 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
     // une mise à jour de stock ; Supabase connecte alors automatiquement ce
     // nouvel onglet, on vérifie la demande en attente, puis on applique le
     // changement seulement à ce moment-là)
+    // affiche un écran de clôture dédié : la procédure ne se réinitialise
+    // (nettoyage de la demande en attente + retour au tableau de bord) que
+    // lorsque le marchand clique lui-même sur "Clôturer", jamais en silence.
+    function renderStockConfirmResult(bodyHtml, kind, proceedToDashboard){
+      msgBox.innerHTML =
+        '<div class="card" style="text-align:center">' +
+          '<div style="font-size:1.4rem">' + (kind === "ok" ? "✅" : "⚠️") + '</div>' +
+          bodyHtml +
+          '<button id="btn-close-stock-confirm" style="margin-top:12px">Clôturer</button>' +
+        '</div>';
+      document.getElementById("btn-close-stock-confirm").addEventListener("click", function(){
+        msgBox.innerHTML = "";
+        if (proceedToDashboard) loadMyStore();
+      });
+    }
+
     (function handlePendingStockConfirmation(){
       var confirmRef = new URLSearchParams(location.search).get("confirm_stock");
       if (!confirmRef) return;
@@ -302,34 +318,59 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
         var session = res.data && res.data.session;
         history.replaceState(null, "", location.pathname);
         if (!session){
-          showMsg("Le lien de confirmation a expiré ou n'est plus valide. Reconnecte-toi pour réessayer.", "error");
-          return;
-        }
-        if (!pending || pending.ref !== confirmRef){
-          showMsg("Ce lien de confirmation a déjà été utilisé, a expiré, ou provient d'une autre demande.", "error");
-          return;
-        }
-        if (Date.now() - pending.requestedAt > 30 * 60 * 1000){
-          localStorage.removeItem("emp_stock_confirm_pending");
-          showMsg("Ce lien de confirmation a expiré (plus de 30 minutes). Refais la demande de mise à jour de stock.", "error");
+          renderStockConfirmResult(
+            '<div style="font-weight:700; margin:8px 0 4px">Lien invalide</div>' +
+            '<div style="color:var(--muted); font-size:.88rem">Le lien de confirmation a expiré ou n\'est plus valide. Reconnecte-toi pour réessayer.</div>',
+            "error", false
+          );
           return;
         }
         currentUser = session.user;
         headerSub.textContent = "Connecté comme " + currentUser.email;
         viewAuth.classList.add("hidden");
+        if (!pending || pending.ref !== confirmRef){
+          renderStockConfirmResult(
+            '<div style="font-weight:700; margin:8px 0 4px">Lien déjà utilisé</div>' +
+            '<div style="color:var(--muted); font-size:.88rem">Ce lien de confirmation a déjà été utilisé, a expiré, ou provient d\'une autre demande.</div>',
+            "error", true
+          );
+          return;
+        }
+        if (Date.now() - pending.requestedAt > 30 * 60 * 1000){
+          localStorage.removeItem("emp_stock_confirm_pending");
+          renderStockConfirmResult(
+            '<div style="font-weight:700; margin:8px 0 4px">Lien expiré</div>' +
+            '<div style="color:var(--muted); font-size:.88rem">Ce lien a plus de 30 minutes. Refais la demande de mise à jour de stock.</div>',
+            "error", true
+          );
+          return;
+        }
         client.from("products").update({ stock_quantity: pending.newStock }).eq("id", pending.productId)
           .then(function(res2){
             if (res2.error) throw res2.error;
+            // la procédure est réinitialisée ici : la demande en attente est
+            // effacée dès l'enregistrement, avant même que le marchand clique
+            // sur "Clôturer" — ce bouton sert seulement à continuer ensuite.
             localStorage.removeItem("emp_stock_confirm_pending");
-            showMsg("Révision de stock confirmée par email : « " + pending.productTitle + " » → stock " + pending.newStock + ".", "ok");
-            loadMyStore();
+            renderStockConfirmResult(
+              '<div style="font-weight:700; margin:8px 0 4px">Révision de stock confirmée</div>' +
+              '<div style="color:var(--muted); font-size:.88rem">« ' + escapeHtml(pending.productTitle) + ' » → stock ' + pending.newStock + '</div>',
+              "ok", true
+            );
           })
           .catch(function(err){
-            showMsg(translateError(err), "error");
-            loadMyStore();
+            renderStockConfirmResult(
+              '<div style="font-weight:700; margin:8px 0 4px">Échec de l\'enregistrement</div>' +
+              '<div style="color:var(--muted); font-size:.88rem">' + escapeHtml(translateError(err)) + '</div>',
+              "error", true
+            );
           });
       }).catch(function(err){
-        showMsg(translateError(err), "error");
+        renderStockConfirmResult(
+          '<div style="font-weight:700; margin:8px 0 4px">Erreur</div>' +
+          '<div style="color:var(--muted); font-size:.88rem">' + escapeHtml(translateError(err)) + '</div>',
+          "error", false
+        );
       });
     })();
 
