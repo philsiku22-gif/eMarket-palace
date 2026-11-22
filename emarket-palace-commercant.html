@@ -1220,6 +1220,9 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
       if (!box) return;
       box.textContent = text || "";
       box.className = "" + (kind || "");
+      // le panneau peut être scrollé loin de ce message (en haut du panneau) :
+      // on le ramène toujours en vue pour qu'un message ne passe pas inaperçu.
+      if (text) box.scrollIntoView({ behavior: "smooth", block: "nearest" });
     }
 
     function openAddProductPanel(){
