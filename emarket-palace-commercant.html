@@ -1139,15 +1139,43 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
       boPanel.classList.add("open");
     }
 
+    function moveProductPosition(p, direction){
+      var idx = currentProducts.findIndex(function(cp){ return cp.id === p.id; });
+      if (idx === -1) return;
+      var otherIdx = idx + direction;
+      if (otherIdx < 0 || otherIdx >= currentProducts.length) return;
+      var other = currentProducts[otherIdx];
+      var myTime = p.created_at;
+      var otherTime = other.created_at;
+      panelMsg("Déplacement...", "");
+      Promise.all([
+        client.from("products").update({ created_at: otherTime }).eq("id", p.id),
+        client.from("products").update({ created_at: myTime }).eq("id", other.id)
+      ]).then(function(results){
+        if (results[0].error) throw results[0].error;
+        if (results[1].error) throw results[1].error;
+        closeBoPanel();
+        refreshBackoffice();
+      }).catch(function(err){ panelMsg(translateError(err), "error"); });
+    }
+
     function openEditProductPanel(p){
       panelMode = "edit";
       panelProduct = p;
       var stock = (p.stock_quantity == null) ? 0 : p.stock_quantity;
+      var posIdx = currentProducts.findIndex(function(cp){ return cp.id === p.id; });
+      if (posIdx === -1) posIdx = 0;
+      var posTotal = currentProducts.length;
       document.getElementById("bo-panel-title").textContent = p.title;
       boPanelBody.innerHTML =
         '<div id="bo-panel-msg"></div>' +
         (p.image_url ? '<div id="bo-img-preview"><img src="' + escapeHtml(p.image_url) + '"></div>' : '<div style="font-size:.78rem; color:#a69d8f">Pas encore de photo pour ce produit.</div>') +
         '<label>' + (p.image_url ? "Changer la photo" : "Ajouter une photo") + ' <input type="file" id="bo-e-image" accept="image/*"></label>' +
+        '<div style="display:flex; align-items:center; gap:8px; margin-top:-2px">' +
+          '<span class="pill" id="bo-btn-move-earlier"' + (posIdx <= 0 ? ' style="opacity:.35; pointer-events:none"' : '') + '>◀ Plus tôt</span>' +
+          '<span style="font-size:.72rem; color:#a69d8f; flex:1; text-align:center">Emplacement ' + (posIdx + 1) + ' / ' + posTotal + '</span>' +
+          '<span class="pill" id="bo-btn-move-later"' + (posIdx >= posTotal - 1 ? ' style="opacity:.35; pointer-events:none"' : '') + '>Plus tard ▶</span>' +
+        '</div>' +
         '<div style="font-size:.85rem; color:#cfc8ba">' + (isNaN(Number(p.price)) ? "" : Number(p.price).toLocaleString("fr-FR") + " $") + '</div>' +
         '<label>Quantité en stock <input type="number" id="bo-e-stock" min="0" step="1" value="' + stock + '"></label>' +
         '<button id="bo-btn-update-stock">Mettre à jour le stock</button>' +
@@ -1179,6 +1207,12 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
         client.from("products").update({ stock_quantity: newStock }).eq("id", p.id)
           .then(function(res2){ if (res2.error) throw res2.error; closeBoPanel(); refreshBackoffice(); })
           .catch(function(err){ panelMsg(translateError(err), "error"); });
+      });
+      document.getElementById("bo-btn-move-earlier").addEventListener("click", function(){
+        moveProductPosition(p, -1);
+      });
+      document.getElementById("bo-btn-move-later").addEventListener("click", function(){
+        moveProductPosition(p, 1);
       });
       document.getElementById("bo-toggle-active").addEventListener("click", function(){
         client.from("products").update({ is_active: !p.is_active }).eq("id", p.id)
