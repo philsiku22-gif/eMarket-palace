@@ -794,34 +794,39 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
       // 3 modules : montants acier noir mat, plateaux bois clair (4 niveaux),
       // caissons bas en carton kraft, cartons/caisses de stock sur les étages.
       (function buildBackWallShelving(){
-        var runW = ROOM_W - 1.4, runH = 2.3, runD = 0.55;
+        // reproduit la photo de référence : 3 modules d'étagères avec montants
+        // fins, plateaux en bois NOYER foncé (pas clair), 2 niveaux ouverts
+        // seulement au-dessus des caissons bas, et des cartons de teintes
+        // mélangées (kraft brun + quelques boîtes blanches/crème).
+        var runW = ROOM_W - 1.4, runH = 2.1, runD = 0.5;
         var group = new THREE.Group();
         group.position.set(0, 0, ROOM_BACK_Z + runD/2 + 0.04);
-        var steelMat = new THREE.MeshStandardMaterial({ map: blackMetalTexture(), roughness:0.45, metalness:0.65, color:0x2a2c2e });
-        var woodMat = new THREE.MeshStandardMaterial({ map: woodTexture(), roughness:0.55, metalness:0.02 });
+        var steelMat = new THREE.MeshStandardMaterial({ map: blackMetalTexture(), roughness:0.4, metalness:0.6, color:0x4a4e52 });
+        var woodMat = new THREE.MeshStandardMaterial({ map: darkWoodTexture(), roughness:0.45, metalness:0.05 });
         var kraftMat = new THREE.MeshStandardMaterial({ map: cardboardTexture(), roughness:0.92, metalness:0.0 });
-        var crateMat = new THREE.MeshStandardMaterial({ map: cardboardTexture(), roughness:0.92, metalness:0.0 });
+        var creamMat = new THREE.MeshStandardMaterial({ color:0xece6d8, roughness:0.85, metalness:0.0 });
 
         var modules = 3;
         var modW = runW / modules;
-        var shelfYs = [0.0, 0.78, 1.52, runH]; // bas, 2 niveaux intermédiaires, haut
+        var cabH = 0.76;
+        var shelfYs = [cabH, 1.42, runH]; // dessus des caissons, 1 niveau intermédiaire, dessus
         var postCount = modules + 1;
 
-        // montants verticaux fins, sur toute la hauteur
+        // montants verticaux fins (métal clair, pas noir opaque), sur toute la hauteur
         for (var i = 0; i < postCount; i++){
           var px = -runW/2 + i * modW;
-          var post = new THREE.Mesh(new THREE.BoxGeometry(0.05, runH, 0.05), steelMat);
+          var post = new THREE.Mesh(new THREE.BoxGeometry(0.035, runH, 0.035), steelMat);
           post.position.set(px, runH/2, 0);
           post.castShadow = true;
           group.add(post);
           var postBack = post.clone();
-          postBack.position.z = -runD + 0.05;
+          postBack.position.z = -runD + 0.04;
           group.add(postBack);
         }
 
-        // plateaux bois clair, 4 niveaux, courant sur toute la largeur
+        // plateaux bois noyer foncé, 3 niveaux (dessus des caissons + 2 au-dessus)
         shelfYs.forEach(function(y){
-          var plank = new THREE.Mesh(new THREE.BoxGeometry(runW + 0.06, 0.05, runD), woodMat);
+          var plank = new THREE.Mesh(new THREE.BoxGeometry(runW + 0.04, 0.04, runD), woodMat);
           plank.position.set(0, y, -runD/2 + 0.03);
           plank.castShadow = true;
           plank.receiveShadow = true;
@@ -829,39 +834,40 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
         });
 
         // caissons fermés en carton kraft sous le premier plateau, sur toute la longueur
-        var cabH = shelfYs[0] > 0 ? shelfYs[0] : 0.78;
-        var cab = new THREE.Mesh(new THREE.BoxGeometry(runW - 0.1, 0.74, runD - 0.06), kraftMat);
-        cab.position.set(0, 0.37, -runD/2 + 0.03);
+        var cab = new THREE.Mesh(new THREE.BoxGeometry(runW - 0.08, cabH - 0.04, runD - 0.05), kraftMat);
+        cab.position.set(0, (cabH - 0.04)/2, -runD/2 + 0.03);
         cab.castShadow = true;
         cab.receiveShadow = true;
         group.add(cab);
         // séparations visibles entre caissons (un par module)
         for (var m = 1; m < modules; m++){
           var seamX = -runW/2 + m * modW;
-          var seam = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.74, runD - 0.04), steelMat);
-          seam.position.set(seamX, 0.37, -runD/2 + 0.03);
+          var seam = new THREE.Mesh(new THREE.BoxGeometry(0.02, cabH - 0.04, runD - 0.03), steelMat);
+          seam.position.set(seamX, (cabH - 0.04)/2, -runD/2 + 0.03);
           group.add(seam);
         }
 
-        // cartons / caisses de stock empilés sur les niveaux intermédiaires et supérieur,
-        // disposés de façon réaliste (tailles variées, légèrement désalignés)
-        var boxLevels = [0.78, 1.52, runH];
+        // cartons de stock sur les 2 niveaux ouverts seulement, tailles variées,
+        // majorité kraft brun avec quelques boîtes blanches/crème mélangées
+        // comme sur la photo (boîtes d'archives claires).
+        var boxLevels = [cabH, 1.42];
         var rng = 1;
         function pseudoRand(){ rng = (rng * 9301 + 49297) % 233280; return rng / 233280; }
-        boxLevels.forEach(function(ly, li){
-          var cursor = -runW/2 + 0.18;
-          while (cursor < runW/2 - 0.18){
-            var bw = 0.3 + pseudoRand() * 0.28;
-            var bh = 0.22 + pseudoRand() * 0.22;
-            var bd = runD - 0.14;
-            if (cursor + bw > runW/2 - 0.1) break;
-            var box = new THREE.Mesh(new THREE.BoxGeometry(bw, bh, bd), li % 2 === 0 ? kraftMat : crateMat);
-            box.position.set(cursor + bw/2, ly + bh/2 + 0.03, -runD/2 + 0.03);
-            box.rotation.y = (pseudoRand() - 0.5) * 0.06;
+        boxLevels.forEach(function(ly){
+          var cursor = -runW/2 + 0.15;
+          while (cursor < runW/2 - 0.15){
+            var bw = 0.22 + pseudoRand() * 0.26;
+            var bh = 0.16 + pseudoRand() * 0.2;
+            var bd = runD - 0.16 - pseudoRand() * 0.1;
+            if (cursor + bw > runW/2 - 0.08) break;
+            var isCream = pseudoRand() < 0.3;
+            var box = new THREE.Mesh(new THREE.BoxGeometry(bw, bh, bd), isCream ? creamMat : kraftMat);
+            box.position.set(cursor + bw/2, ly + bh/2 + 0.02, -runD/2 + 0.03 + (runD - 0.16 - bd) * (pseudoRand() - 0.5));
+            box.rotation.y = (pseudoRand() - 0.5) * 0.08;
             box.castShadow = true;
             box.receiveShadow = true;
             group.add(box);
-            cursor += bw + 0.05 + pseudoRand() * 0.12;
+            cursor += bw + 0.04 + pseudoRand() * 0.1;
           }
         });
 
@@ -1167,6 +1173,18 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
       ctx.fillStyle = "#c9a876"; ctx.fillRect(0, 0, 256, 128);
       for (var y = 0; y < 128; y += 3){
         ctx.fillStyle = "rgba(" + (170+Math.random()*40|0) + "," + (140+Math.random()*30|0) + "," + (95+Math.random()*25|0) + ",.5)";
+        ctx.fillRect(0, y, 256, 2 + Math.random()*2);
+      }
+      return repeatTex(c, 2, 1);
+    }
+    function darkWoodTexture(){
+      // bois noyer/espresso satiné, comme les plateaux d'étagère de la
+      // photo de référence (plus foncé que le bois clair du bureau).
+      var c = document.createElement("canvas"); c.width = 256; c.height = 128;
+      var ctx = c.getContext("2d");
+      ctx.fillStyle = "#5c4430"; ctx.fillRect(0, 0, 256, 128);
+      for (var y = 0; y < 128; y += 3){
+        ctx.fillStyle = "rgba(" + (60+Math.random()*30|0) + "," + (42+Math.random()*22|0) + "," + (26+Math.random()*16|0) + ",.55)";
         ctx.fillRect(0, y, 256, 2 + Math.random()*2);
       }
       return repeatTex(c, 2, 1);
