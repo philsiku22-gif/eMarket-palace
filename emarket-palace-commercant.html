@@ -50,9 +50,11 @@ button.small{padding:6px 10px; font-size:.8rem}
 .store-banner .badge{width:44px;height:44px;border-radius:10px;background:var(--accent);color:var(--accent-ink);display:flex;align-items:center;justify-content:center;font-weight:700}
 .store-banner h2{margin:0; font-size:1.05rem}
 .store-banner .cat{font-size:.78rem; color:var(--accent); font-weight:600}
-.item-row{display:flex; justify-content:space-between; align-items:center; gap:10px; padding:12px 0; border-bottom:1px solid var(--border); cursor:pointer}
+.item-row{display:flex; justify-content:space-between; align-items:center; gap:10px; padding:12px 10px; border-bottom:1px solid var(--border); cursor:pointer; border-radius:9px; user-select:none}
 .item-row:last-child{border-bottom:none}
 .item-row:hover{background:rgba(31,122,92,.05)}
+.item-row.selected{background:rgba(31,122,92,.1); outline:2px solid var(--accent); outline-offset:-2px}
+.row-hint{font-size:.72rem; color:var(--muted); padding:0 10px 10px; margin-top:-4px}
 .item-info{min-width:0}
 .item-info .name{font-weight:600; font-size:.92rem}
 .item-info .meta{font-size:.78rem; color:var(--muted)}
@@ -183,6 +185,7 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
           <button id="bo-btn-add">+ Nouveau produit</button>
         </div>
       </div>
+      <div class="row-hint">Clique pour sélectionner un emplacement &middot; double-clique pour voir la fiche produit &middot; clic droit pour le gérer (stock, prix, vitrine, suppression)</div>
       <div class="card" id="bo-list"><div class="loading">Chargement...</div></div>
     </div>
 
@@ -466,6 +469,7 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
       }
 
       area.innerHTML = "";
+      var selectedRow = null;
       products.forEach(function(p){
         var stock = (p.stock_quantity == null) ? 0 : p.stock_quantity;
         var row = document.createElement("div");
@@ -480,7 +484,23 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
             (p.en_vitrine ? '<span class="pill active">En vitrine</span>' : '') +
             (p.is_active ? '' : '<span class="pill">Masqué</span>') +
           '</div>';
-        row.addEventListener("click", function(){ openEditProductPanel(p); });
+
+        // clic simple : sélectionne/active cet emplacement (surbrillance), sans ouvrir de panneau
+        row.addEventListener("click", function(){
+          if (selectedRow && selectedRow !== row) selectedRow.classList.remove("selected");
+          row.classList.toggle("selected");
+          selectedRow = row.classList.contains("selected") ? row : null;
+        });
+
+        // double-clic : affiche la fiche produit (lecture) avec ses caractéristiques
+        row.addEventListener("dblclick", function(){ openProductDetailPanel(p); });
+
+        // clic droit : gestion complète du produit (stock, prix, photo, vitrine, en ligne, suppression)
+        row.addEventListener("contextmenu", function(ev){
+          ev.preventDefault();
+          openEditProductPanel(p);
+        });
+
         area.appendChild(row);
       });
     }
@@ -512,6 +532,26 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
       if (!box) return;
       box.textContent = text || "";
       box.className = "" + (kind || "");
+    }
+
+    function openProductDetailPanel(p){
+      var stock = (p.stock_quantity == null) ? 0 : p.stock_quantity;
+      document.getElementById("bo-panel-title").textContent = p.title;
+      boPanelBody.innerHTML =
+        '<div id="bo-panel-msg"></div>' +
+        (p.image_url ? '<div id="bo-img-preview" style="width:100%;height:160px"><img src="' + escapeHtml(p.image_url) + '"></div>' : '<div style="font-size:.78rem; color:#a69d8f">Pas encore de photo pour ce produit.</div>') +
+        '<div style="font-size:1.1rem; font-weight:700; color:#f2eee6">' + (isNaN(Number(p.price)) ? "—" : Number(p.price).toLocaleString("fr-FR") + " $") + '</div>' +
+        '<div style="display:flex; gap:8px; flex-wrap:wrap">' +
+          '<span class="pill' + (stock > 0 ? ' active' : '') + '">' + (stock > 0 ? "Stock " + stock : "Rupture de stock") + '</span>' +
+          '<span class="pill' + (p.en_vitrine ? ' active' : '') + '">' + (p.en_vitrine ? "En vitrine" : "Pas en vitrine") + '</span>' +
+          '<span class="pill' + (p.is_active ? ' active' : '') + '">' + (p.is_active ? "En ligne" : "Masqué") + '</span>' +
+        '</div>' +
+        (p.description ? '<div style="font-size:.85rem; color:#cfc8ba; white-space:pre-wrap">' + escapeHtml(p.description) + '</div>' : '<div style="font-size:.8rem; color:#a69d8f">Pas de description.</div>') +
+        '<button id="bo-btn-goto-manage">Gérer ce produit</button>';
+
+      document.getElementById("bo-btn-goto-manage").addEventListener("click", function(){ openEditProductPanel(p); });
+
+      openBoPanel();
     }
 
     function openAddProductPanel(){
@@ -588,9 +628,10 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
         '<div id="bo-panel-msg"></div>' +
         (p.image_url ? '<div id="bo-img-preview"><img src="' + escapeHtml(p.image_url) + '"></div>' : '<div style="font-size:.78rem; color:#a69d8f">Pas encore de photo pour ce produit.</div>') +
         '<label>' + (p.image_url ? "Changer la photo" : "Ajouter une photo") + ' <input type="file" id="bo-e-image" accept="image/*"></label>' +
-        '<div style="font-size:.85rem; color:#cfc8ba">' + (isNaN(Number(p.price)) ? "" : Number(p.price).toLocaleString("fr-FR") + " $") + '</div>' +
+        '<label>Prix ($) <input type="number" id="bo-e-price" min="0" step="0.01" value="' + (isNaN(Number(p.price)) ? "" : Number(p.price)) + '"></label>' +
         '<label>Quantité en stock <input type="number" id="bo-e-stock" min="0" step="1" value="' + stock + '"></label>' +
-        '<button id="bo-btn-update-stock">Mettre à jour le stock</button>' +
+        '<label>Description <textarea id="bo-e-description">' + escapeHtml(p.description || "") + '</textarea></label>' +
+        '<button id="bo-btn-update-stock">Enregistrer (prix, stock, description)</button>' +
         '<div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:4px">' +
           '<span class="pill' + (p.is_active ? ' active' : '') + '" id="bo-toggle-active">' + (p.is_active ? "En ligne" : "Masqué") + '</span>' +
           '<span class="pill' + (p.en_vitrine ? ' active' : '') + '" id="bo-toggle-vitrine">' + (p.en_vitrine ? "Retirer de la vitrine" : "Mettre en vitrine") + '</span>' +
@@ -616,7 +657,11 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
       document.getElementById("bo-btn-update-stock").addEventListener("click", function(){
         var newStock = parseInt(document.getElementById("bo-e-stock").value, 10);
         if (isNaN(newStock) || newStock < 0) newStock = 0;
-        client.from("products").update({ stock_quantity: newStock }).eq("id", p.id)
+        var newPrice = parseFloat(document.getElementById("bo-e-price").value);
+        var newDescription = document.getElementById("bo-e-description").value.trim();
+        var patch = { stock_quantity: newStock, description: newDescription };
+        if (!isNaN(newPrice) && newPrice >= 0) patch.price = newPrice;
+        client.from("products").update(patch).eq("id", p.id)
           .then(function(res2){ if (res2.error) throw res2.error; closeBoPanel(); refreshBackoffice(); })
           .catch(function(err){ panelMsg(translateError(err), "error"); });
       });
