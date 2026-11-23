@@ -630,6 +630,27 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
     var panelMode = null; // "add" | "edit"
     var panelProduct = null;
 
+    // environnement réfléchissant léger (ciel/sol en dégradé) pour que les
+    // métaux et le sol poli captent une lumière ambiante au lieu de rester
+    // plats comme un rendu "dessin animé" sans aucun reflet.
+    function buildStudioEnvMap(renderer){
+      var pmrem = new THREE.PMREMGenerator(renderer);
+      pmrem.compileEquirectangularShader();
+      var c = document.createElement("canvas");
+      c.width = 2; c.height = 64;
+      var ctx = c.getContext("2d");
+      var grad = ctx.createLinearGradient(0, 0, 0, 64);
+      grad.addColorStop(0, "#fdfaf2");
+      grad.addColorStop(0.5, "#cfd3d6");
+      grad.addColorStop(1, "#2a2d30");
+      ctx.fillStyle = grad; ctx.fillRect(0, 0, 2, 64);
+      var tex = new THREE.CanvasTexture(c);
+      tex.mapping = THREE.EquirectangularReflectionMapping;
+      var envMap = pmrem.fromEquirectangular(tex).texture;
+      pmrem.dispose();
+      return envMap;
+    }
+
     function initBackoffice(){
       if (boStarted) { refreshBackoffice(); return; }
       boStarted = true;
@@ -649,7 +670,14 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
       renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
       renderer.setSize(w, h);
       renderer.shadowMap.enabled = true;
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+      // rendu "photo" plutôt que "dessin animé 3D" : tone mapping cinéma +
+      // encodage couleur correct + un environnement réfléchissant léger.
+      renderer.outputEncoding = THREE.sRGBEncoding;
+      renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      renderer.toneMappingExposure = 1.05;
       wrap.appendChild(renderer.domElement);
+      scene.environment = buildStudioEnvMap(renderer);
 
       controls = new THREE.OrbitControls(camera, renderer.domElement);
       controls.target.set(0, 1.5, -1);
@@ -737,7 +765,7 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
         [-2, 1].forEach(function(z){
           var fixture = new THREE.Mesh(
             new THREE.BoxGeometry(1.1, 0.06, 1.1),
-            new THREE.MeshStandardMaterial({ color:0xffffff, emissive:0xf3f8ff, emissiveIntensity:0.95 })
+            new THREE.MeshStandardMaterial({ color:0xffffff, emissive:0xf3f8ff, emissiveIntensity:0.5 })
           );
           fixture.position.set(x, ROOM_H - 0.06, z);
           scene.add(fixture);
@@ -1122,7 +1150,7 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
       counter.add(base);
       var counterTrim = new THREE.Mesh(
         new THREE.BoxGeometry(2.42, 0.08, 1.12),
-        new THREE.MeshStandardMaterial({ color:0x3fae84, emissive:0x3fae84, emissiveIntensity:0.25, roughness:0.3, metalness:0.35 })
+        new THREE.MeshStandardMaterial({ color:0x3fae84, emissive:0x3fae84, emissiveIntensity:0.12, roughness:0.3, metalness:0.35 })
       );
       counterTrim.position.y = 1.1;
       counter.add(counterTrim);
@@ -1186,7 +1214,7 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
         // liseré de couleur (vert = en vitrine, gris = pas en vitrine)
         var stripe = new THREE.Mesh(
           new THREE.BoxGeometry(rackW + 0.1, 0.07, 0.07),
-          new THREE.MeshStandardMaterial({ color: frameColor, emissive: frameColor, emissiveIntensity:0.4 })
+          new THREE.MeshStandardMaterial({ color: frameColor, emissive: frameColor, emissiveIntensity:0.18 })
         );
         stripe.position.set(0, rackH + 0.08, rackD/2 + 0.04);
         group.add(stripe);

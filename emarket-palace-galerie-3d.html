@@ -283,7 +283,32 @@ var renderer = new THREE.WebGLRenderer({ antialias:true });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+// rendu "photo" plutôt que "dessin animé 3D" : tone mapping cinéma +
+// encodage couleur correct + un environnement réfléchissant léger.
+renderer.outputEncoding = THREE.sRGBEncoding;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.05;
 wrap.appendChild(renderer.domElement);
+
+function buildStudioEnvMap(renderer){
+  var pmrem = new THREE.PMREMGenerator(renderer);
+  pmrem.compileEquirectangularShader();
+  var c = document.createElement("canvas");
+  c.width = 2; c.height = 64;
+  var ctx = c.getContext("2d");
+  var grad = ctx.createLinearGradient(0, 0, 0, 64);
+  grad.addColorStop(0, "#fff3d6");
+  grad.addColorStop(0.5, "#8a6a3a");
+  grad.addColorStop(1, "#120d08");
+  ctx.fillStyle = grad; ctx.fillRect(0, 0, 2, 64);
+  var tex = new THREE.CanvasTexture(c);
+  tex.mapping = THREE.EquirectangularReflectionMapping;
+  var envMap = pmrem.fromEquirectangular(tex).texture;
+  pmrem.dispose();
+  return envMap;
+}
+scene.environment = buildStudioEnvMap(renderer);
 
 var controls = new THREE.OrbitControls(camera, renderer.domElement);
 controls.target.set(0, 1.8, 0);
@@ -354,7 +379,7 @@ scene.add(carpet);
 [-1.18, 1.18].forEach(function(cx){
   var trim = new THREE.Mesh(
     new THREE.PlaneGeometry(0.1, 11),
-    new THREE.MeshStandardMaterial({ color:0xd4af37, emissive:0xd4af37, emissiveIntensity:0.3, roughness:0.3, metalness:0.6 })
+    new THREE.MeshStandardMaterial({ color:0xd4af37, emissive:0xd4af37, emissiveIntensity:0.12, roughness:0.3, metalness:0.6 })
   );
   trim.rotation.x = -Math.PI/2;
   trim.position.set(cx, 0.017, 9.5);
@@ -363,7 +388,7 @@ scene.add(carpet);
 
 /* anneau central décoratif, liseré or */
 var ringGeo = new THREE.RingGeometry(3.6, 3.9, 48);
-var ringMat = new THREE.MeshStandardMaterial({ color:0xd4af37, emissive:0xd4af37, emissiveIntensity:0.45, roughness:0.25, metalness:0.6 });
+var ringMat = new THREE.MeshStandardMaterial({ color:0xd4af37, emissive:0xd4af37, emissiveIntensity:0.2, roughness:0.25, metalness:0.6 });
 var ring = new THREE.Mesh(ringGeo, ringMat);
 ring.rotation.x = -Math.PI/2;
 ring.position.y = 0.02;
@@ -435,7 +460,7 @@ function textTexture(line1, line2, bg, fg){
     var a = (k/12) * Math.PI * 2;
     var bulb = new THREE.Mesh(
       new THREE.SphereGeometry(0.07, 10, 10),
-      new THREE.MeshStandardMaterial({ color:0xfff0c8, emissive:0xfff0c8, emissiveIntensity:1.1 })
+      new THREE.MeshStandardMaterial({ color:0xfff0c8, emissive:0xfff0c8, emissiveIntensity:0.75 })
     );
     bulb.position.set(Math.cos(a)*0.9, -0.12, Math.sin(a)*0.9);
     chan.add(bulb);
@@ -489,7 +514,7 @@ function buildBooths(list){
 
     var goldTrim = new THREE.Mesh(
       new THREE.BoxGeometry(2.95, 0.04, 1.35),
-      new THREE.MeshStandardMaterial({ color:0xd4af37, emissive:0xd4af37, emissiveIntensity:0.3, roughness:0.3, metalness:0.65 })
+      new THREE.MeshStandardMaterial({ color:0xd4af37, emissive:0xd4af37, emissiveIntensity:0.12, roughness:0.3, metalness:0.65 })
     );
     goldTrim.position.y = 2.41;
     group.add(goldTrim);
