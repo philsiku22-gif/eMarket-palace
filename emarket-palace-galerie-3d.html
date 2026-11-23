@@ -284,31 +284,7 @@ renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-// rendu "photo" plutôt que "dessin animé 3D" : tone mapping cinéma +
-// encodage couleur correct + un environnement réfléchissant léger.
-renderer.outputEncoding = THREE.sRGBEncoding;
-renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 0.62;
 wrap.appendChild(renderer.domElement);
-
-function buildStudioEnvMap(renderer){
-  var pmrem = new THREE.PMREMGenerator(renderer);
-  pmrem.compileEquirectangularShader();
-  var c = document.createElement("canvas");
-  c.width = 2; c.height = 64;
-  var ctx = c.getContext("2d");
-  var grad = ctx.createLinearGradient(0, 0, 0, 64);
-  grad.addColorStop(0, "#fff3d6");
-  grad.addColorStop(0.5, "#8a6a3a");
-  grad.addColorStop(1, "#120d08");
-  ctx.fillStyle = grad; ctx.fillRect(0, 0, 2, 64);
-  var tex = new THREE.CanvasTexture(c);
-  tex.mapping = THREE.EquirectangularReflectionMapping;
-  var envMap = pmrem.fromEquirectangular(tex).texture;
-  pmrem.dispose();
-  return envMap;
-}
-scene.environment = buildStudioEnvMap(renderer);
 
 var controls = new THREE.OrbitControls(camera, renderer.domElement);
 controls.target.set(0, 1.8, 0);
