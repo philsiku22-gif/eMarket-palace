@@ -711,8 +711,14 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
       var wallTex = wallTexture();
       var wallMat = new THREE.MeshStandardMaterial({ map: wallTex, roughness:0.9 });
 
-      // mur du fond
-      var backWall = new THREE.Mesh(new THREE.PlaneGeometry(ROOM_W, ROOM_H), wallMat);
+      // mur du fond : la photo réelle devient directement le décor du mur
+      // (un seul paysage cohérent, pas une photo encadrée dans la pièce),
+      // avec un léger zoom/pan animé en boucle (effet Ken Burns).
+      refPhotoTex = new THREE.TextureLoader().load("backoffice-reference.jpg");
+      refPhotoTex.wrapS = THREE.ClampToEdgeWrapping;
+      refPhotoTex.wrapT = THREE.ClampToEdgeWrapping;
+      var backWallMat = new THREE.MeshStandardMaterial({ map: refPhotoTex, roughness:0.85 });
+      var backWall = new THREE.Mesh(new THREE.PlaneGeometry(ROOM_W, ROOM_H), backWallMat);
       backWall.position.set(0, ROOM_H/2, ROOM_BACK_Z);
       scene.add(backWall);
 
@@ -754,60 +760,6 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
           scene.add(lamp);
         });
       });
-
-      // photo réelle importée (référence), encadrée au mur comme un vrai cadre
-      // accroché (ombre portée + passe-partout + caisse américaine), avec un
-      // léger zoom/pan animé en boucle (effet Ken Burns) pour donner vie à l'espace.
-      (function(){
-        var wallX = -3.3, wallY = 1.85, wallZ = ROOM_BACK_Z;
-
-        // ombre portée douce sur le mur, légèrement décalée en bas/droite,
-        // pour que le cadre paraisse réellement accroché plutôt que collé.
-        var shadow = new THREE.Mesh(
-          new THREE.PlaneGeometry(2.0, 1.55),
-          new THREE.MeshBasicMaterial({ color:0x000000, transparent:true, opacity:0.22, depthWrite:false })
-        );
-        shadow.position.set(wallX + 0.05, wallY - 0.07, wallZ + 0.012);
-        scene.add(shadow);
-
-        // caisse américaine (bord épais type galerie d'art)
-        var frameMat = new THREE.MeshStandardMaterial({ color:0x242120, roughness:0.55, metalness:0.15 });
-        var refFrame = new THREE.Mesh(new THREE.BoxGeometry(1.86, 1.42, 0.08), frameMat);
-        refFrame.position.set(wallX, wallY, wallZ + 0.045);
-        refFrame.castShadow = true;
-        scene.add(refFrame);
-
-        // passe-partout clair (marge visible autour de la photo)
-        var mat = new THREE.Mesh(
-          new THREE.PlaneGeometry(1.74, 1.3),
-          new THREE.MeshStandardMaterial({ color:0xf3efe6, roughness:0.9 })
-        );
-        mat.position.set(wallX, wallY, wallZ + 0.086);
-        scene.add(mat);
-
-        // la photo elle-même, légèrement en retrait dans le passe-partout
-        refPhotoTex = new THREE.TextureLoader().load("backoffice-reference.jpg");
-        var refPhotoMat = new THREE.MeshStandardMaterial({ map: refPhotoTex, roughness:0.5 });
-        var refPhotoPlane = new THREE.Mesh(new THREE.PlaneGeometry(1.5, 1.08), refPhotoMat);
-        refPhotoPlane.position.set(wallX, wallY, wallZ + 0.092);
-        scene.add(refPhotoPlane);
-
-        // petite plaque-étiquette sous le cadre, comme dans une vraie galerie
-        var refLabelTex = textTexture("Référence réelle", "", "#2a2420", "#f2eee6");
-        var refLabel = new THREE.Mesh(
-          new THREE.PlaneGeometry(0.95, 0.19),
-          new THREE.MeshBasicMaterial({ map: refLabelTex, transparent:true })
-        );
-        refLabel.position.set(wallX, wallY - 0.86, wallZ + 0.05);
-        scene.add(refLabel);
-
-        // petit spot dédié façon éclairage de galerie, pour détacher le cadre du mur
-        var pictureLight = new THREE.SpotLight(0xfff3df, 0.6, 6, Math.PI/6, 0.5, 1.2);
-        pictureLight.position.set(wallX, ROOM_H - 0.3, wallZ + 1.6);
-        pictureLight.target.position.set(wallX, wallY, wallZ);
-        scene.add(pictureLight);
-        scene.add(pictureLight.target);
-      })();
 
       shelfGroup = new THREE.Group();
       scene.add(shelfGroup);
