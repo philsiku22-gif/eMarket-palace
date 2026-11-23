@@ -2,30 +2,30 @@
 <meta name="claude:viewport-fit-sides" content="cover">
 <style>
 /* Layout: auth -> (créer boutique si aucune) -> tableau de bord à onglets
-   Arrière-boutique 3D / Commandes */
+Arrière-boutique (vue photo + liste) / Commandes */
 :root{
-  --bg:#f7f5f1; --surface:#ffffff; --ink:#1c1a17; --muted:#6b645c;
-  --accent:#1f7a5c; --accent-ink:#ffffff; --border:#e4ddd3; --danger:#b3432f;
-  color-scheme:light;
+--bg:#f7f5f1; --surface:#ffffff; --ink:#1c1a17; --muted:#6b645c;
+--accent:#1f7a5c; --accent-ink:#ffffff; --border:#e4ddd3; --danger:#b3432f;
+color-scheme:light;
 }
 @media (prefers-color-scheme: dark){
-  :root:not([data-theme="light"]){
-    --bg:#15130f; --surface:#211e19; --ink:#f2eee6; --muted:#a69d8f;
-    --accent:#3fae84; --accent-ink:#0b1410; --border:#352f27; --danger:#e2715c;
-    color-scheme:dark;
-  }
+:root:not([data-theme="light"]){
+--bg:#15130f; --surface:#211e19; --ink:#f2eee6; --muted:#a69d8f;
+--accent:#3fae84; --accent-ink:#0b1410; --border:#352f27; --danger:#e2715c;
+color-scheme:dark;
+}
 }
 :root[data-theme="dark"]{
-  --bg:#15130f; --surface:#211e19; --ink:#f2eee6; --muted:#a69d8f;
-  --accent:#3fae84; --accent-ink:#0b1410; --border:#352f27; --danger:#e2715c;
-  color-scheme:dark;
+--bg:#15130f; --surface:#211e19; --ink:#f2eee6; --muted:#a69d8f;
+--accent:#3fae84; --accent-ink:#0b1410; --border:#352f27; --danger:#e2715c;
+color-scheme:dark;
 }
 *{box-sizing:border-box}
 body{
-  background:var(--bg); color:var(--ink); margin:0;
-  font-family:"Inter",system-ui,-apple-system,sans-serif;
-  padding-left:max(16px, env(safe-area-inset-left,0px));
-  padding-right:max(16px, env(safe-area-inset-right,0px));
+background:var(--bg); color:var(--ink); margin:0;
+font-family:"Inter",system-ui,-apple-system,sans-serif;
+padding-left:max(16px, env(safe-area-inset-left,0px));
+padding-right:max(16px, env(safe-area-inset-right,0px));
 }
 .wrap{max-width:680px; margin:0 auto; padding-block:24px 56px; display:flex; flex-direction:column; gap:18px}
 h1{font-family:"Space Grotesk",system-ui,sans-serif; font-size:1.4rem; margin:0}
@@ -50,8 +50,11 @@ button.small{padding:6px 10px; font-size:.8rem}
 .store-banner .badge{width:44px;height:44px;border-radius:10px;background:var(--accent);color:var(--accent-ink);display:flex;align-items:center;justify-content:center;font-weight:700}
 .store-banner h2{margin:0; font-size:1.05rem}
 .store-banner .cat{font-size:.78rem; color:var(--accent); font-weight:600}
-.item-row{display:flex; justify-content:space-between; align-items:center; gap:10px; padding:12px 0; border-bottom:1px solid var(--border)}
+.item-row{display:flex; justify-content:space-between; align-items:center; gap:10px; padding:12px 10px; border-bottom:1px solid var(--border); cursor:pointer; border-radius:9px; user-select:none}
 .item-row:last-child{border-bottom:none}
+.item-row:hover{background:rgba(31,122,92,.05)}
+.item-row.selected{background:rgba(31,122,92,.1); outline:2px solid var(--accent); outline-offset:-2px}
+.row-hint{font-size:.72rem; color:var(--muted); padding:0 10px 10px; margin-top:-4px}
 .item-info{min-width:0}
 .item-info .name{font-weight:600; font-size:.92rem}
 .item-info .meta{font-size:.78rem; color:var(--muted)}
@@ -62,41 +65,39 @@ button.small{padding:6px 10px; font-size:.8rem}
 .empty{color:var(--muted); font-size:.88rem; padding:12px 0}
 footer{font-size:.78rem; color:var(--muted); text-align:center}
 
-/* ---- arrière-boutique 3D ---- */
-#bo-hint{font-size:.8rem; color:var(--muted); margin:-4px 0 0}
-#bo-viewport{
-  position:relative; width:100%; height:64vh; min-height:440px; max-height:620px;
-  border-radius:14px; overflow:hidden; border:1px solid var(--border); background:#0c0b09;
-  font-family:"Inter",system-ui,-apple-system,sans-serif; color:#f2eee6;
+/* ---- arrière-boutique (décor photo + liste produits) ---- */
+#bo-hero{
+position:relative; border-radius:14px; overflow:hidden; border:1px solid var(--border);
+min-height:220px; background:#1a1814 center/cover no-repeat;
+display:flex; align-items:flex-end;
 }
-#bo-canvas-wrap{position:absolute; inset:0}
-#bo-canvas-wrap canvas{display:block; touch-action:none}
-#bo-loading{position:absolute; inset:0; background:#0c0b09; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px; z-index:12; transition:opacity .3s}
-#bo-loading .spin{width:26px;height:26px;border-radius:50%;border:3px solid #352f27;border-top-color:#3fae84;animation:bospin 1s linear infinite}
-@keyframes bospin{to{transform:rotate(360deg)}}
-#bo-loading .txt{font-size:.8rem; color:#a69d8f; text-align:center; padding:0 20px}
-#bo-hud{position:absolute; top:0; left:0; right:0; padding:12px 14px; pointer-events:none; z-index:6}
-#bo-hud h3{margin:0; font-size:.92rem; font-family:"Space Grotesk",system-ui,sans-serif; text-shadow:0 2px 8px rgba(0,0,0,.6)}
-#bo-hud .s{font-size:.72rem; color:#cfc8ba; margin-top:2px; text-shadow:0 2px 8px rgba(0,0,0,.6)}
-#bo-tip{position:absolute; bottom:10px; left:50%; transform:translateX(-50%); font-size:.7rem; color:#cfc8ba; background:rgba(20,18,15,.55); padding:6px 12px; border-radius:999px; backdrop-filter:blur(6px); z-index:6; pointer-events:none; white-space:nowrap; text-align:center; max-width:92%; overflow:hidden; text-overflow:ellipsis}
-#bo-dpad{position:absolute; left:10px; bottom:10px; z-index:9; display:none; grid-template-columns:38px 38px 38px; grid-template-rows:38px 38px 38px; gap:3px}
-#bo-dpad button{background:rgba(26,24,20,.75); border:1px solid #352f27; color:#f2eee6; border-radius:9px; font-size:1rem; backdrop-filter:blur(6px)}
-@media (max-width:640px){ #bo-dpad{ display:grid } }
+#bo-hero::after{
+content:""; position:absolute; inset:0;
+background:linear-gradient(180deg, rgba(10,9,7,0) 35%, rgba(10,9,7,.78) 100%);
+}
+#bo-hero-content{position:relative; z-index:1; padding:16px 18px; width:100%; display:flex; justify-content:space-between; align-items:flex-end; gap:12px}
+#bo-hero-content h3{margin:0; font-size:1.05rem; color:#f2eee6; font-family:"Space Grotesk",system-ui,sans-serif; text-shadow:0 2px 8px rgba(0,0,0,.6)}
+#bo-hero-content .s{font-size:.78rem; color:#cfc8ba; margin-top:3px; text-shadow:0 2px 8px rgba(0,0,0,.6)}
+#bo-hero-content button{flex:none; white-space:nowrap}
+
+#bo-list{display:flex; flex-direction:column}
 
 #bo-panel{
-  position:absolute; right:0; top:0; bottom:0; width:min(340px,92%);
-  background:#1a1814; border-left:1px solid #352f27; color:#f2eee6;
-  transform:translateX(100%); transition:transform .3s ease; z-index:10;
-  display:flex; flex-direction:column; overflow-y:auto;
+position:fixed; right:0; top:0; bottom:0; width:min(340px,92%);
+background:#1a1814; border-left:1px solid #352f27; color:#f2eee6;
+transform:translateX(100%); transition:transform .3s ease; z-index:30;
+display:flex; flex-direction:column; overflow-y:auto;
 }
 #bo-panel.open{transform:translateX(0)}
+#bo-panel-backdrop{position:fixed; inset:0; background:rgba(0,0,0,.4); z-index:29; opacity:0; pointer-events:none; transition:opacity .3s}
+#bo-panel-backdrop.open{opacity:1; pointer-events:auto}
 #bo-panel-head{padding:14px 16px; border-bottom:1px solid #352f27; display:flex; align-items:center; gap:10px}
 #bo-panel-head h4{margin:0; font-size:.95rem; flex:1}
 #bo-panel-close{background:none; border:none; color:#a69d8f; font-size:1.2rem; cursor:pointer; line-height:1; padding:2px}
 #bo-panel-body{padding:14px 16px; display:flex; flex-direction:column; gap:10px}
 #bo-panel-body label{font-size:.78rem; font-weight:600; display:flex; flex-direction:column; gap:5px; color:#f2eee6}
 #bo-panel-body input,#bo-panel-body select,#bo-panel-body textarea{
-  font:inherit; font-size:.88rem; padding:8px 10px; border-radius:8px; border:1px solid #352f27; background:#211e19; color:#f2eee6;
+font:inherit; font-size:.88rem; padding:8px 10px; border-radius:8px; border:1px solid #352f27; background:#211e19; color:#f2eee6;
 }
 #bo-panel-body textarea{min-height:56px; resize:vertical}
 #bo-panel-body button{font:inherit; font-weight:700; font-size:.85rem; padding:10px 14px; border-radius:9px; border:none; background:#3fae84; color:#0b1410; cursor:pointer}
@@ -108,1558 +109,580 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
 #bo-panel-msg:empty{display:none}
 #bo-img-preview{width:64px;height:64px;border-radius:9px;overflow:hidden;border:1px solid #352f27}
 #bo-img-preview img{width:100%;height:100%;object-fit:cover}
-
-/* ---- menu flottant : processus en cours (ex. révision de stock en attente de confirmation par email) ---- */
-#process-menu-btn{
-  position:fixed; right:18px; bottom:18px; z-index:40;
-  width:46px; height:46px; border-radius:50%; border:1px solid var(--border);
-  background:var(--surface); color:var(--text); font-size:1.2rem; cursor:pointer;
-  display:flex; align-items:center; justify-content:center;
-  box-shadow:0 4px 16px rgba(0,0,0,.18);
-}
-#process-menu-badge{
-  position:absolute; top:-4px; right:-4px; min-width:16px; height:16px; padding:0 3px;
-  border-radius:999px; background:#e2715c; color:#fff; font-size:.62rem; font-weight:700;
-  display:flex; align-items:center; justify-content:center; line-height:1;
-}
-#process-menu-badge.hidden{display:none}
-#process-menu-panel{
-  position:fixed; right:18px; bottom:72px; z-index:40; width:min(300px,86vw);
-  background:var(--surface); border:1px solid var(--border); border-radius:12px;
-  padding:14px; box-shadow:0 8px 28px rgba(0,0,0,.22);
-}
-#process-menu-panel.hidden{display:none}
 </style>
 
 <div class="wrap">
-  <div>
-    <h1>Espace commerçant</h1>
-    <div class="sub" id="header-sub">Connecte-toi pour gérer ta vitrine.</div>
-  </div>
+<div>
+<h1>Espace commerçant</h1>
+<div class="sub" id="header-sub">Connecte-toi pour gérer ta vitrine.</div>
+</div>
 
-  <div id="msg-box"></div>
+<div id="msg-box"></div>
 
-  <!-- AUTH -->
-  <div id="view-auth" class="card">
-    <div class="tabs">
-      <div class="tab active" id="tab-login">Se connecter</div>
-      <div class="tab" id="tab-signup">Créer un compte</div>
-    </div>
-    <label>Nom complet <span id="name-hint"></span>
-      <input type="text" id="auth-name" placeholder="Ex. Jeanne Kalonji" class="hidden">
-    </label>
-    <label>Adresse email
-      <input type="email" id="auth-email" placeholder="toi@exemple.com" autocomplete="email">
-    </label>
-    <label>Mot de passe
-      <input type="password" id="auth-password" placeholder="6 caractères minimum" autocomplete="current-password">
-    </label>
-    <button id="btn-auth">Se connecter</button>
-  </div>
+<!-- AUTH -->
+<div id="view-auth" class="card">
+<div class="tabs">
+<div class="tab active" id="tab-login">Se connecter</div>
+<div class="tab" id="tab-signup">Créer un compte</div>
+</div>
+<label>Nom complet <span id="name-hint"></span>
+<input type="text" id="auth-name" placeholder="Ex. Jeanne Kalonji" class="hidden">
+</label>
+<label>Adresse email
+<input type="email" id="auth-email" placeholder="toi@exemple.com" autocomplete="email">
+</label>
+<label>Mot de passe
+<input type="password" id="auth-password" placeholder="6 caractères minimum" autocomplete="current-password">
+</label>
+<button id="btn-auth">Se connecter</button>
+</div>
 
-  <!-- CREATE STORE -->
-  <div id="view-create-store" class="card hidden">
-    <div class="sub">Tu n'as pas encore de boutique. Crée-la pour commencer à vendre.</div>
-    <label>Nom de la boutique
-      <input type="text" id="store_name" placeholder="Ex. Chez Jeanne Mode">
-    </label>
-    <label>Catégorie
-      <select id="store_category">
-        <option value="" disabled selected>Choisis une catégorie</option>
-        <option>Mode &amp; Accessoires</option>
-        <option>Électronique</option>
-        <option>Alimentation</option>
-        <option>Beauté &amp; Soins</option>
-        <option>Maison &amp; Déco</option>
-        <option>Services</option>
-      </select>
-    </label>
-    <label>Description
-      <textarea id="store_description" placeholder="En quelques mots, qu'est-ce que tu vends ?"></textarea>
-    </label>
-    <button id="btn-create-store">Créer ma boutique</button>
-  </div>
+<!-- CREATE STORE -->
+<div id="view-create-store" class="card hidden">
+<div class="sub">Tu n'as pas encore de boutique. Crée-la pour commencer à vendre.</div>
+<label>Nom de la boutique
+<input type="text" id="store_name" placeholder="Ex. Chez Jeanne Mode">
+</label>
+<label>Catégorie
+<select id="store_category">
+<option value="" disabled selected>Choisis une catégorie</option>
+<option>Mode &amp; Accessoires</option>
+<option>Électronique</option>
+<option>Alimentation</option>
+<option>Beauté &amp; Soins</option>
+<option>Maison &amp; Déco</option>
+<option>Services</option>
+</select>
+</label>
+<label>Description
+<textarea id="store_description" placeholder="En quelques mots, qu'est-ce que tu vends ?"></textarea>
+</label>
+<button id="btn-create-store">Créer ma boutique</button>
+</div>
 
-  <!-- DASHBOARD -->
-  <div id="view-dashboard" class="hidden">
-    <button id="process-menu-btn" title="Processus en cours">⚙️<span id="process-menu-badge" class="hidden"></span></button>
-    <div id="process-menu-panel" class="hidden">
-      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px">
-        <strong style="font-size:.9rem">Processus en cours</strong>
-        <button id="process-menu-close" style="background:none; border:none; color:var(--muted); font-size:1.1rem; cursor:pointer; padding:0; line-height:1">×</button>
-      </div>
-      <div id="process-menu-body"></div>
-    </div>
+<!-- DASHBOARD -->
+<div id="view-dashboard" class="hidden">
+<div class="card store-banner">
+<div class="badge" id="db-badge">?</div>
+<div>
+<h2 id="db-store-name"></h2>
+<div class="cat" id="db-store-cat"></div>
+</div>
+</div>
 
-    <div class="card store-banner">
-      <div class="badge" id="db-badge">?</div>
-      <div>
-        <h2 id="db-store-name"></h2>
-        <div class="cat" id="db-store-cat"></div>
-      </div>
-    </div>
+<div class="tabs">
+<div class="tab active" id="tab-products">Arrière-boutique</div>
+<div class="tab" id="tab-orders">Commandes</div>
+</div>
 
-    <div class="tabs">
-      <div class="tab active" id="tab-products">Arrière-boutique</div>
-      <div class="tab" id="tab-orders">Commandes</div>
-    </div>
+<div id="panel-products">
+<div id="bo-hero">
+<div id="bo-hero-content">
+<div>
+<h3 id="bo-hero-title">Arrière-boutique</h3>
+<div class="s" id="bo-hero-sub">Chargement...</div>
+</div>
+<button id="bo-btn-add">+ Nouveau produit</button>
+</div>
+</div>
+<div class="row-hint">Clique pour sélectionner un emplacement &middot; double-clique pour voir la fiche produit &middot; clic droit pour le gérer (stock, prix, vitrine, suppression)</div>
+<div class="card" id="bo-list"><div class="loading">Chargement...</div></div>
+</div>
 
-    <div id="panel-products">
-      <div class="sub" id="bo-hint">
-        Déplace-toi dans ton arrière-boutique (flèches / ZQSD ou WASD, glisser pour regarder autour) &middot;
-        clic sur une étagère = la sélectionner &middot; double-clic = voir la fiche produit &middot;
-        clic droit = la gérer (stock, prix, photo, vitrine, suppression) &middot; comptoir vert = ajouter un produit.
-      </div>
-      <div id="bo-viewport">
-        <div id="bo-canvas-wrap"></div>
-        <div id="bo-loading"><div class="spin"></div><div class="txt">Construction de l'arrière-boutique...</div></div>
-        <div id="bo-hud">
-          <h3 id="bo-hud-title">Arrière-boutique</h3>
-          <div class="s" id="bo-hud-sub">Chargement...</div>
-        </div>
-        <div id="bo-tip">Clic = sélectionner &middot; double-clic = fiche produit &middot; clic droit = gérer</div>
-        <div id="bo-dpad">
-          <span></span><button id="bo-dp-up">▲</button><span></span>
-          <button id="bo-dp-left">◀</button><span></span><button id="bo-dp-right">▶</button>
-          <span></span><button id="bo-dp-down">▼</button><span></span>
-        </div>
+<div id="panel-orders" class="hidden">
+<div class="card" id="orders-list"><div class="loading">Chargement...</div></div>
+</div>
+</div>
 
-        <div id="bo-panel">
-          <div id="bo-panel-head"><h4 id="bo-panel-title">Produit</h4><button id="bo-panel-close">&times;</button></div>
-          <div id="bo-panel-body"></div>
-        </div>
-      </div>
-    </div>
+<footer>eMarket-Palace &middot; connecté à la base de données en direct</footer>
+</div>
 
-    <div id="panel-orders" class="hidden">
-      <div class="card" id="orders-list"><div class="loading">Chargement...</div></div>
-    </div>
-  </div>
-
-  <footer>eMarket-Palace &middot; connecté à la base de données en direct</footer>
+<div id="bo-panel-backdrop"></div>
+<div id="bo-panel">
+<div id="bo-panel-head"><h4 id="bo-panel-title">Produit</h4><button id="bo-panel-close">&times;</button></div>
+<div id="bo-panel-body"></div>
 </div>
 
 <script>
 (function(){
-  "use strict";
-  var SUPABASE_URL = "https://dnwfbnhvxnoyosjuzxxs.supabase.co";
-  var SUPABASE_KEY = "sb_publishable_oWWjQGlbhIl7FGsB5cK75w_PlNeDmpf";
-
-  var mode = "login";
-  var currentUser = null;
-  var myStore = null;
-  var client = null;
-
-  var msgBox = document.getElementById("msg-box");
-  var headerSub = document.getElementById("header-sub");
-  var viewAuth = document.getElementById("view-auth");
-  var viewCreateStore = document.getElementById("view-create-store");
-  var viewDashboard = document.getElementById("view-dashboard");
-
-  function showMsg(text, kind){
-    msgBox.innerHTML = "";
-    if (!text) return;
-    var div = document.createElement("div");
-    div.className = "msg " + (kind || "");
-    div.textContent = text;
-    msgBox.appendChild(div);
-  }
-
-  function escapeHtml(s){
-    return String(s == null ? "" : s).replace(/[&<>"']/g, function(c){
-      return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];
-    });
-  }
-
-  function translateError(err){
-    var m = (err && err.message) || String(err);
-    if (/already registered|already exists/i.test(m)) return "Cette adresse email a déjà un compte.";
-    if (/invalid login credentials/i.test(m)) return "Email ou mot de passe incorrect.";
-    if (/password/i.test(m) && /short|least/i.test(m)) return "Le mot de passe est trop court (6 caractères minimum).";
-    if (/row-level security|rls/i.test(m)) return "Accès refusé par la base de données.";
-    return m;
-  }
-
-  /* ---- chargement robuste de Supabase + Three.js, avec sources de secours ---- */
-  function loadScript(urls, onDone, onFail){
-    var i = 0;
-    function tryNext(){
-      if (i >= urls.length){ if (onFail) onFail(); return; }
-      var url = urls[i++];
-      var s = document.createElement("script");
-      s.src = url;
-      s.onload = onDone;
-      s.onerror = tryNext;
-      document.head.appendChild(s);
-    }
-    tryNext();
-  }
-
-  var libsReady = new Promise(function(resolve, reject){
-    loadScript([
-      "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js",
-      "https://unpkg.com/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"
-    ], function(){
-      client = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-      loadScript([
-        "https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js",
-        "https://unpkg.com/three@0.128.0/build/three.min.js"
-      ], function(){
-        loadScript([
-          "https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js",
-          "https://unpkg.com/three@0.128.0/examples/js/controls/OrbitControls.js"
-        ], resolve, reject);
-      }, reject);
-    }, reject);
-  });
-
-  libsReady.catch(function(){
-    showMsg("Certaines librairies n'ont pas pu se charger (connexion internet ou bloqueur de script). Recharge la page.", "error");
-  });
-
-  libsReady.then(function(){
-    // ---- confirmation par email d'une révision de stock en attente ----
-    // (le marchand clique sur ce lien depuis l'email reçu après avoir demandé
-    // une mise à jour de stock ; Supabase connecte alors automatiquement ce
-    // nouvel onglet, on vérifie la demande en attente, puis on applique le
-    // changement seulement à ce moment-là)
-    // affiche un écran de clôture dédié : la procédure ne se réinitialise
-    // (nettoyage de la demande en attente + retour au tableau de bord) que
-    // lorsque le marchand clique lui-même sur "Clôturer", jamais en silence.
-    function renderStockConfirmResult(bodyHtml, kind, proceedToDashboard){
-      msgBox.innerHTML =
-        '<div class="card" style="text-align:center">' +
-          '<div style="font-size:1.4rem">' + (kind === "ok" ? "✅" : "⚠️") + '</div>' +
-          bodyHtml +
-          '<button id="btn-close-stock-confirm" style="margin-top:12px">Clôturer</button>' +
-        '</div>';
-      document.getElementById("btn-close-stock-confirm").addEventListener("click", function(){
-        msgBox.innerHTML = "";
-        if (proceedToDashboard) loadMyStore();
-      });
-    }
-
-    (function handlePendingStockConfirmation(){
-      var confirmRef = new URLSearchParams(location.search).get("confirm_stock");
-      if (!confirmRef) return;
-      var raw = localStorage.getItem("emp_stock_confirm_pending");
-      var pending = null;
-      try { pending = raw ? JSON.parse(raw) : null; } catch (e) { pending = null; }
-      client.auth.getSession().then(function(res){
-        var session = res.data && res.data.session;
-        history.replaceState(null, "", location.pathname);
-        if (!session){
-          renderStockConfirmResult(
-            '<div style="font-weight:700; margin:8px 0 4px">Lien invalide</div>' +
-            '<div style="color:var(--muted); font-size:.88rem">Le lien de confirmation a expiré ou n\'est plus valide. Reconnecte-toi pour réessayer.</div>',
-            "error", false
-          );
-          return;
-        }
-        currentUser = session.user;
-        headerSub.textContent = "Connecté comme " + currentUser.email;
-        viewAuth.classList.add("hidden");
-        if (!pending || pending.ref !== confirmRef){
-          renderStockConfirmResult(
-            '<div style="font-weight:700; margin:8px 0 4px">Lien déjà utilisé</div>' +
-            '<div style="color:var(--muted); font-size:.88rem">Ce lien de confirmation a déjà été utilisé, a expiré, ou provient d\'une autre demande.</div>',
-            "error", true
-          );
-          return;
-        }
-        if (Date.now() - pending.requestedAt > 30 * 60 * 1000){
-          localStorage.removeItem("emp_stock_confirm_pending");
-          renderStockConfirmResult(
-            '<div style="font-weight:700; margin:8px 0 4px">Lien expiré</div>' +
-            '<div style="color:var(--muted); font-size:.88rem">Ce lien a plus de 30 minutes. Refais la demande de mise à jour de stock.</div>',
-            "error", true
-          );
-          return;
-        }
-        client.from("products").update({ stock_quantity: pending.newStock }).eq("id", pending.productId)
-          .then(function(res2){
-            if (res2.error) throw res2.error;
-            // la procédure est réinitialisée ici : la demande en attente est
-            // effacée dès l'enregistrement, avant même que le marchand clique
-            // sur "Clôturer" — ce bouton sert seulement à continuer ensuite.
-            localStorage.removeItem("emp_stock_confirm_pending");
-            renderStockConfirmResult(
-              '<div style="font-weight:700; margin:8px 0 4px">Révision de stock confirmée</div>' +
-              '<div style="color:var(--muted); font-size:.88rem">« ' + escapeHtml(pending.productTitle) + ' » → stock ' + pending.newStock + '</div>',
-              "ok", true
-            );
-          })
-          .catch(function(err){
-            renderStockConfirmResult(
-              '<div style="font-weight:700; margin:8px 0 4px">Échec de l\'enregistrement</div>' +
-              '<div style="color:var(--muted); font-size:.88rem">' + escapeHtml(translateError(err)) + '</div>',
-              "error", true
-            );
-          });
-      }).catch(function(err){
-        renderStockConfirmResult(
-          '<div style="font-weight:700; margin:8px 0 4px">Erreur</div>' +
-          '<div style="color:var(--muted); font-size:.88rem">' + escapeHtml(translateError(err)) + '</div>',
-          "error", false
-        );
-      });
-    })();
-
-    // ---- AUTH ----
-    document.getElementById("tab-login").addEventListener("click", function(){
-      mode = "login";
-      document.getElementById("tab-login").classList.add("active");
-      document.getElementById("tab-signup").classList.remove("active");
-      document.getElementById("auth-name").classList.add("hidden");
-      document.getElementById("btn-auth").textContent = "Se connecter";
-    });
-    document.getElementById("tab-signup").addEventListener("click", function(){
-      mode = "signup";
-      document.getElementById("tab-signup").classList.add("active");
-      document.getElementById("tab-login").classList.remove("active");
-      document.getElementById("auth-name").classList.remove("hidden");
-      document.getElementById("btn-auth").textContent = "Créer mon compte";
-    });
-
-    document.getElementById("btn-auth").addEventListener("click", function(){
-      showMsg("", "");
-      var name = document.getElementById("auth-name").value.trim();
-      var email = document.getElementById("auth-email").value.trim();
-      var password = document.getElementById("auth-password").value;
-      var btn = document.getElementById("btn-auth");
-      btn.disabled = true;
-
-      var action = mode === "signup"
-        ? client.auth.signUp({ email: email, password: password })
-        : client.auth.signInWithPassword({ email: email, password: password });
-
-      action.then(function(res){
-          if (res.error) throw res.error;
-          var user = res.data && res.data.user;
-          if (!user) throw new Error("Vérifie ton email pour confirmer ton compte avant de te connecter.");
-          currentUser = user;
-          return client.from("profiles")
-            .upsert({ id: user.id, full_name: name || email.split("@")[0], role: "merchant" })
-            .then(function(profRes){
-              if (profRes.error){
-                console.warn("Impossible de créer/mettre à jour le profil (sera retenté à la prochaine connexion) :", profRes.error);
-              }
-            });
-        })
-        .then(function(){
-          headerSub.textContent = "Connecté comme " + email;
-          viewAuth.classList.add("hidden");
-          loadMyStore();
-        })
-        .catch(function(err){ showMsg(translateError(err), "error"); })
-        .finally(function(){ btn.disabled = false; });
-    });
-
-    // ---- STORE ----
-    function loadMyStore(){
-      client.from("stores").select("*").eq("merchant_id", currentUser.id).limit(1).maybeSingle()
-        .then(function(res){
-          if (res.error) throw res.error;
-          myStore = res.data;
-          if (!myStore){
-            viewCreateStore.classList.remove("hidden");
-          } else {
-            showDashboard();
-          }
-        })
-        .catch(function(err){ showMsg(translateError(err), "error"); });
-    }
-
-    document.getElementById("btn-create-store").addEventListener("click", function(){
-      showMsg("", "");
-      var store_name = document.getElementById("store_name").value.trim();
-      var category = document.getElementById("store_category").value;
-      var description = document.getElementById("store_description").value.trim();
-      if (!store_name || !category){
-        showMsg("Donne au moins un nom et une catégorie à ta boutique.", "error");
-        return;
-      }
-
-      var btn = document.getElementById("btn-create-store");
-      btn.disabled = true;
-
-      client.from("profiles")
-        .upsert({
-          id: currentUser.id,
-          role: "merchant",
-          full_name: (currentUser.user_metadata && currentUser.user_metadata.full_name) || (currentUser.email ? currentUser.email.split("@")[0] : "Commerçant")
-        })
-        .then(function(profRes){
-          if (profRes.error) throw profRes.error;
-          return client.from("stores").insert({
-            merchant_id: currentUser.id,
-            store_name: store_name,
-            category: category,
-            description: description,
-            subscription_status: "pending"
-          }).select().single();
-        })
-        .then(function(res){
-          if (res.error) throw res.error;
-          myStore = res.data;
-          viewCreateStore.classList.add("hidden");
-          showDashboard();
-        })
-        .catch(function(err){ showMsg(translateError(err), "error"); })
-        .finally(function(){ btn.disabled = false; });
-    });
-
-    function showDashboard(){
-      viewDashboard.classList.remove("hidden");
-      document.getElementById("db-badge").textContent = (myStore.store_name || "?").trim().charAt(0).toUpperCase();
-      document.getElementById("db-store-name").textContent = myStore.store_name;
-      document.getElementById("db-store-cat").textContent = myStore.category;
-      document.getElementById("bo-hud-title").textContent = myStore.store_name;
-      initBackoffice();
-      renderProcessMenu();
-    }
-
-    // ---- menu flottant "Processus en cours" ----
-    // affiche la révision de stock en attente d'une confirmation par email
-    // (si il y en a une) et permet de l'annuler.
-    function renderProcessMenu(){
-      var raw = localStorage.getItem("emp_stock_confirm_pending");
-      var pending = null;
-      try { pending = raw ? JSON.parse(raw) : null; } catch (e) { pending = null; }
-      var badge = document.getElementById("process-menu-badge");
-      var body = document.getElementById("process-menu-body");
-      if (pending){
-        badge.textContent = "1";
-        badge.classList.remove("hidden");
-        var mins = Math.max(0, Math.round((Date.now() - pending.requestedAt) / 60000));
-        body.innerHTML =
-          '<div style="font-weight:700; font-size:.85rem; margin-bottom:4px">Révision de stock en attente</div>' +
-          '<div style="font-size:.8rem; color:var(--muted); margin-bottom:10px">« ' + escapeHtml(pending.productTitle) + ' » → stock ' + pending.newStock + '<br>Email envoyé il y a ' + mins + (mins <= 1 ? " minute" : " minutes") + '.</div>' +
-          '<button id="btn-cancel-pending-stock" style="background:transparent; color:#e2715c; border:1px solid #e2715c; width:100%">Annuler la demande</button>';
-        document.getElementById("btn-cancel-pending-stock").addEventListener("click", function(){
-          localStorage.removeItem("emp_stock_confirm_pending");
-          renderProcessMenu();
-        });
-      } else {
-        badge.classList.add("hidden");
-        body.innerHTML = '<div style="font-size:.82rem; color:var(--muted)">Aucune procédure en attente.</div>';
-      }
-    }
-    document.getElementById("process-menu-btn").addEventListener("click", function(){
-      renderProcessMenu();
-      document.getElementById("process-menu-panel").classList.toggle("hidden");
-    });
-    document.getElementById("process-menu-close").addEventListener("click", function(){
-      document.getElementById("process-menu-panel").classList.add("hidden");
-    });
-
-    // ---- TABS ----
-    document.getElementById("tab-products").addEventListener("click", function(){
-      document.getElementById("tab-products").classList.add("active");
-      document.getElementById("tab-orders").classList.remove("active");
-      document.getElementById("panel-products").classList.remove("hidden");
-      document.getElementById("panel-orders").classList.add("hidden");
-      onBackofficeShown();
-    });
-    document.getElementById("tab-orders").addEventListener("click", function(){
-      document.getElementById("tab-orders").classList.add("active");
-      document.getElementById("tab-products").classList.remove("active");
-      document.getElementById("panel-orders").classList.remove("hidden");
-      document.getElementById("panel-products").classList.add("hidden");
-      loadOrders();
-    });
-
-    function uploadProductImage(file){
-      var ext = (file.name.split(".").pop() || "jpg").toLowerCase().replace(/[^a-z0-9]/g, "") || "jpg";
-      var path = myStore.id + "/" + Date.now() + "-" + Math.random().toString(36).slice(2) + "." + ext;
-      return client.storage.from("product-images").upload(path, file)
-        .then(function(res){
-          if (res.error) throw res.error;
-          var pub = client.storage.from("product-images").getPublicUrl(path);
-          return pub.data.publicUrl;
-        });
-    }
-
-    // ================== ORDERS TAB (inchangé, simple liste) ==================
-    function loadOrders(){
-      var area = document.getElementById("orders-list");
-      area.innerHTML = '<div class="loading">Chargement...</div>';
-      client.from("order_items")
-        .select("quantity, unit_price, products!inner(title, store_id), orders(status, created_at, payment_method)")
-        .eq("products.store_id", myStore.id)
-        .then(function(res){
-          if (res.error) throw res.error;
-          var rows = res.data || [];
-          if (rows.length === 0){
-            area.innerHTML = '<div class="empty">Aucune commande reçue pour l\'instant.</div>';
-            return;
-          }
-          area.innerHTML = "";
-          rows.forEach(function(r){
-            var row = document.createElement("div");
-            row.className = "item-row";
-            var lineTotal = Number(r.unit_price) * r.quantity;
-            var status = r.orders ? r.orders.status : "inconnu";
-            var date = r.orders && r.orders.created_at ? new Date(r.orders.created_at).toLocaleDateString("fr-FR") : "";
-            row.innerHTML =
-              '<div class="item-info">' +
-                '<div class="name">' + escapeHtml(r.products.title) + ' &times; ' + r.quantity + '</div>' +
-                '<div class="meta">' + lineTotal.toLocaleString("fr-FR") + ' $ &middot; ' + date + '</div>' +
-              '</div>' +
-              '<span class="pill' + (status === "paid" ? " active" : "") + '">' + escapeHtml(statusLabel(status)) + '</span>';
-            area.appendChild(row);
-          });
-        })
-        .catch(function(err){
-          area.innerHTML = '<div class="empty">Erreur : ' + escapeHtml(err.message || err) + '</div>';
-        });
-    }
-
-    function statusLabel(s){
-      return { paid: "Payée", preparing: "En préparation", shipped: "Expédiée", delivered: "Livrée", cancelled: "Annulée" }[s] || s;
-    }
-
-    // ================== ARRIÈRE-BOUTIQUE 3D ==================
-    var boStarted = false;
-    var boReady = false;
-    var scene, camera, renderer, controls, raycaster, pointer, clock;
-    var wrap, loadingBox, viewport;
-    var shelfGroup, clickable = [];
-    var selectionHighlight = null, selectedHit = null;
-    var move = { fwd:false, back:false, left:false, right:false };
-    var downPos = null;
-    var currentProducts = [];
-    var panelMode = null; // "add" | "edit"
-    var panelProduct = null;
-
-    function initBackoffice(){
-      if (boStarted) { refreshBackoffice(); return; }
-      boStarted = true;
-      viewport = document.getElementById("bo-viewport");
-      wrap = document.getElementById("bo-canvas-wrap");
-      loadingBox = document.getElementById("bo-loading");
-
-      scene = new THREE.Scene();
-      scene.background = new THREE.Color(0xe4e7e9);
-      scene.fog = new THREE.Fog(0xe4e7e9, 22, 48);
-
-      var w = viewport.clientWidth, h = viewport.clientHeight;
-      camera = new THREE.PerspectiveCamera(58, w / h, 0.1, 150);
-      camera.position.set(0, 1.65, 3.6);
-
-      renderer = new THREE.WebGLRenderer({ antialias:true });
-      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-      renderer.setSize(w, h);
-      renderer.shadowMap.enabled = true;
-      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-      wrap.appendChild(renderer.domElement);
-
-      controls = new THREE.OrbitControls(camera, renderer.domElement);
-      controls.target.set(0, 1.5, -1);
-      controls.enableDamping = true;
-      controls.dampingFactor = 0.08;
-      controls.minDistance = 0.6;
-      controls.maxDistance = 4;
-      controls.maxPolarAngle = Math.PI * 0.52;
-      controls.minPolarAngle = Math.PI * 0.22;
-      controls.enablePan = false;
-      controls.update();
-
-      scene.add(new THREE.HemisphereLight(0xf7f9fa, 0x9aa3a8, 0.8));
-      var sun = new THREE.DirectionalLight(0xffffff, 0.58);
-      sun.position.set(6, 12, 6);
-      sun.castShadow = true;
-      sun.shadow.mapSize.set(1024,1024);
-      scene.add(sun);
-      var fill = new THREE.DirectionalLight(0xeaf2f6, 0.3);
-      fill.position.set(-8, 8, 4);
-      scene.add(fill);
-
-      // dimensions d'une vraie petite réserve de boutique (pas un entrepôt géant) :
-      // largeur 9 m, profondeur 9 m, plafond à 3,2 m — à l'échelle d'une personne.
-      var ROOM_W = 9, ROOM_D = 9, ROOM_H = 3.2;
-      var ROOM_BACK_Z = -ROOM_D/2, ROOM_FRONT_Z = ROOM_D/2;
-      var ROOM_LEFT_X = -ROOM_W/2, ROOM_RIGHT_X = ROOM_W/2;
-
-      // sol (béton poli clair, texture procédurale) — comme la réserve réelle
-      var floor = new THREE.Mesh(
-        new THREE.PlaneGeometry(ROOM_W, ROOM_D),
-        new THREE.MeshStandardMaterial({ map: concreteTexture(), roughness:0.38, metalness:0.03, color:0xe9e6e0 })
-      );
-      floor.rotation.x = -Math.PI/2;
-      floor.receiveShadow = true;
-      scene.add(floor);
-
-      var wallTex = wallTexture();
-      var wallMat = new THREE.MeshStandardMaterial({ map: wallTex, roughness:0.92, color:0xf2f0ea });
-
-      // murs : blanc/gris clair uni, sans aucune décoration rapportée —
-      // c'est la géométrie et le mobilier qui recréent la vraie pièce, pas une photo collée.
-      var backWall = new THREE.Mesh(new THREE.PlaneGeometry(ROOM_W, ROOM_H), wallMat);
-      backWall.position.set(0, ROOM_H/2, ROOM_BACK_Z);
-      scene.add(backWall);
-
-      [ROOM_LEFT_X, ROOM_RIGHT_X].forEach(function(x){
-        var sw = new THREE.Mesh(new THREE.PlaneGeometry(ROOM_D, ROOM_H), wallMat);
-        sw.position.set(x, ROOM_H/2, 0);
-        sw.rotation.y = x < 0 ? Math.PI/2 : -Math.PI/2;
-        scene.add(sw);
-      });
-
-      // porte vitrée à cadre doré, comme la séparation réelle avec la boutique
-      (function(){
-        var doorGroup = new THREE.Group();
-        doorGroup.position.set(ROOM_LEFT_X + 0.03, 0, -1.2);
-        doorGroup.rotation.y = Math.PI * 0.08;
-        var goldMat = new THREE.MeshStandardMaterial({ color:0xc8a04a, roughness:0.35, metalness:0.75 });
-        var glassMat = new THREE.MeshStandardMaterial({ color:0xdfe6e6, transparent:true, opacity:0.22, roughness:0.1, metalness:0.1 });
-        var doorW = 1.1, doorH = 2.5;
-        [[-doorW/2,0],[doorW/2,0]].forEach(function(p){
-          var post = new THREE.Mesh(new THREE.BoxGeometry(0.05, doorH, 0.05), goldMat);
-          post.position.set(p[0], doorH/2, p[1]);
-          doorGroup.add(post);
-        });
-        [0, doorH].forEach(function(y){
-          var rail = new THREE.Mesh(new THREE.BoxGeometry(doorW, 0.05, 0.05), goldMat);
-          rail.position.set(0, y === 0 ? 0.02 : doorH, 0);
-          doorGroup.add(rail);
-        });
-        var midRail = new THREE.Mesh(new THREE.BoxGeometry(doorW, 0.04, 0.04), goldMat);
-        midRail.position.set(0, doorH * 0.55, 0);
-        doorGroup.add(midRail);
-        var glass = new THREE.Mesh(new THREE.PlaneGeometry(doorW - 0.08, doorH - 0.1), glassMat);
-        glass.position.set(0, doorH/2, 0.01);
-        doorGroup.add(glass);
-        scene.add(doorGroup);
-      })();
-
-      // plafond clair + bandeau LED continu encastré le long du pourtour,
-      // comme l'éclairage linéaire de la vraie pièce (pas des dalles carrées).
-      var ceiling = new THREE.Mesh(
-        new THREE.PlaneGeometry(ROOM_W, ROOM_D),
-        new THREE.MeshStandardMaterial({ color:0xf6f7f8, roughness:1 })
-      );
-      ceiling.rotation.x = Math.PI/2;
-      ceiling.position.y = ROOM_H;
-      scene.add(ceiling);
-
-      var ledInset = 0.9;
-      var stripMat = new THREE.MeshStandardMaterial({ color:0xffffff, emissive:0xfff8ea, emissiveIntensity:0.9 });
-      var ledY = ROOM_H - 0.04;
-      var stripN = new THREE.Mesh(new THREE.BoxGeometry(ROOM_W - ledInset*2, 0.03, 0.08), stripMat);
-      stripN.position.set(0, ledY, ROOM_BACK_Z + ledInset);
-      scene.add(stripN);
-      var stripS = stripN.clone();
-      stripS.position.set(0, ledY, ROOM_FRONT_Z - ledInset);
-      scene.add(stripS);
-      [ROOM_LEFT_X, ROOM_RIGHT_X].forEach(function(x){
-        var stripSide = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.03, ROOM_D - ledInset*2), stripMat);
-        stripSide.position.set(x < 0 ? x + ledInset : x - ledInset, ledY, 0);
-        scene.add(stripSide);
-      });
-      [[-2.4,-1.5],[1.2,-1.5],[-2.4,1.5],[1.2,1.5]].forEach(function(p){
-        var lamp = new THREE.PointLight(0xfff8ea, 0.32, 9, 2);
-        lamp.position.set(p[0], ROOM_H - 0.25, p[1]);
-        scene.add(lamp);
-      });
-
-      shelfGroup = new THREE.Group();
-      scene.add(shelfGroup);
-
-      buildOfficeCorner();
-
-      raycaster = new THREE.Raycaster();
-      pointer = new THREE.Vector2();
-      clock = new THREE.Clock();
-
-      // surlignage 3D de l'emplacement sélectionné (clic simple) : un cadre
-      // fin et lumineux qui se déplace sur l'étagère choisie.
-      var highlightGeo = new THREE.EdgesGeometry(new THREE.BoxGeometry(2.0, 2.3, 0.9));
-      var highlightMat = new THREE.LineBasicMaterial({ color:0x3fae84, linewidth:2, transparent:true, opacity:0.95 });
-      selectionHighlight = new THREE.LineSegments(highlightGeo, highlightMat);
-      selectionHighlight.visible = false;
-      scene.add(selectionHighlight);
-      selectedHit = null;
-
-      function hitFromEvent(ev){
-        var rect = renderer.domElement.getBoundingClientRect();
-        pointer.x = ((ev.clientX - rect.left) / rect.width) * 2 - 1;
-        pointer.y = -((ev.clientY - rect.top) / rect.height) * 2 + 1;
-        raycaster.setFromCamera(pointer, camera);
-        var meshes = clickable.map(function(c){ return c.mesh; });
-        var hits = raycaster.intersectObjects(meshes);
-        if (hits.length === 0) return null;
-        return clickable.find(function(c){ return c.mesh === hits[0].object; }) || null;
-      }
-
-      function selectHit(hit){
-        if (!hit || hit.kind !== "edit"){ deselectHit(); return; }
-        if (selectedHit && selectedHit.product.id === hit.product.id){ deselectHit(); return; }
-        selectedHit = hit;
-        selectionHighlight.position.copy(hit.mesh.parent.position);
-        selectionHighlight.position.y = hit.mesh.position.y;
-        selectionHighlight.visible = true;
-        document.getElementById("bo-tip").textContent =
-          "« " + hit.product.title + " » sélectionné · double-clic = fiche · clic droit = gérer";
-      }
-      function deselectHit(){
-        selectedHit = null;
-        selectionHighlight.visible = false;
-        document.getElementById("bo-tip").textContent = "Clic = sélectionner · double-clic = fiche produit · clic droit = gérer";
-      }
-
-      renderer.domElement.addEventListener("pointerdown", function(ev){ downPos = { x: ev.clientX, y: ev.clientY }; });
-      renderer.domElement.addEventListener("pointerup", function(ev){
-        if (!downPos) return;
-        var moved = Math.hypot(ev.clientX - downPos.x, ev.clientY - downPos.y);
-        downPos = null;
-        if (moved > 6) return;
-        if (ev.button === 2) return; // géré par contextmenu
-        var hit = hitFromEvent(ev);
-        if (!hit) { deselectHit(); return; }
-        if (hit.kind === "add") openAddProductPanel();
-        else selectHit(hit);
-      });
-      renderer.domElement.addEventListener("dblclick", function(ev){
-        var hit = hitFromEvent(ev);
-        if (!hit) return;
-        if (hit.kind === "add") openAddProductPanel();
-        else openProductDetailPanel(hit.product);
-      });
-      renderer.domElement.addEventListener("contextmenu", function(ev){
-        ev.preventDefault();
-        var hit = hitFromEvent(ev);
-        if (!hit) return;
-        if (hit.kind === "add") openAddProductPanel();
-        else openEditProductPanel(hit.product);
-      });
-
-      window.addEventListener("keydown", function(ev){
-        switch((ev.key||"").toLowerCase()){
-          case "arrowup": case "w": case "z": move.fwd = true; break;
-          case "arrowdown": case "s": move.back = true; break;
-          case "arrowleft": case "a": case "q": move.left = true; break;
-          case "arrowright": case "d": move.right = true; break;
-        }
-      });
-      window.addEventListener("keyup", function(ev){
-        switch((ev.key||"").toLowerCase()){
-          case "arrowup": case "w": case "z": move.fwd = false; break;
-          case "arrowdown": case "s": move.back = false; break;
-          case "arrowleft": case "a": case "q": move.left = false; break;
-          case "arrowright": case "d": move.right = false; break;
-        }
-      });
-      function bindHold(id, key){
-        var el = document.getElementById(id);
-        var start = function(e){ e.preventDefault(); move[key] = true; };
-        var end = function(e){ e.preventDefault(); move[key] = false; };
-        el.addEventListener("touchstart", start);
-        el.addEventListener("touchend", end);
-        el.addEventListener("touchcancel", end);
-        el.addEventListener("mousedown", start);
-        el.addEventListener("mouseup", end);
-        el.addEventListener("mouseleave", end);
-      }
-      bindHold("bo-dp-up","fwd"); bindHold("bo-dp-down","back"); bindHold("bo-dp-left","left"); bindHold("bo-dp-right","right");
-
-      new ResizeObserver(function(){
-        if (!viewport.clientWidth || !viewport.clientHeight) return;
-        camera.aspect = viewport.clientWidth / viewport.clientHeight;
-        camera.updateProjectionMatrix();
-        renderer.setSize(viewport.clientWidth, viewport.clientHeight);
-      }).observe(viewport);
-
-      document.getElementById("bo-panel-close").addEventListener("click", closeBoPanel);
-
-      function animate(){
-        requestAnimationFrame(animate);
-        updateMovement();
-        controls.update();
-        renderer.render(scene, camera);
-      }
-      animate();
-
-      boReady = true;
-      refreshBackoffice();
-    }
-
-    function onBackofficeShown(){
-      if (boStarted && viewport){
-        // le conteneur était caché (display:none) donc sa taille était 0 ; on
-        // ré-ajuste la caméra/le rendu maintenant qu'il est visible.
-        setTimeout(function(){
-          if (!viewport.clientWidth || !viewport.clientHeight) return;
-          camera.aspect = viewport.clientWidth / viewport.clientHeight;
-          camera.updateProjectionMatrix();
-          renderer.setSize(viewport.clientWidth, viewport.clientHeight);
-        }, 30);
-      }
-    }
-
-    function updateMovement(){
-      if (!clock) return;
-      var dt = clock.getDelta();
-      var speed = 6 * dt;
-      if (!move.fwd && !move.back && !move.left && !move.right) return;
-      var dir = new THREE.Vector3();
-      camera.getWorldDirection(dir);
-      dir.y = 0; dir.normalize();
-      var right = new THREE.Vector3().crossVectors(dir, new THREE.Vector3(0,1,0)).normalize().negate();
-      var delta = new THREE.Vector3();
-      if (move.fwd) delta.add(dir);
-      if (move.back) delta.sub(dir);
-      if (move.right) delta.add(right);
-      if (move.left) delta.sub(right);
-      if (delta.lengthSq() > 0){
-        delta.normalize().multiplyScalar(speed);
-        var next = camera.position.clone().add(delta);
-        if (next.x > -3.9 && next.x < 3.9 && next.z > -3.9 && next.z < 3.9){
-          camera.position.add(delta);
-          controls.target.add(delta);
-        }
-      }
-    }
-
-    function roundRect(ctx,x,y,w,h,r){
-      ctx.beginPath();
-      ctx.moveTo(x+r,y);
-      ctx.arcTo(x+w,y,x+w,y+h,r);
-      ctx.arcTo(x+w,y+h,x,y+h,r);
-      ctx.arcTo(x,y+h,x,y,r);
-      ctx.arcTo(x,y,x+w,y,r);
-      ctx.closePath();
-    }
-    function textTexture(line1, line2, bg, fg){
-      var c = document.createElement("canvas");
-      c.width = 420; c.height = 200;
-      var ctx = c.getContext("2d");
-      ctx.fillStyle = bg;
-      roundRect(ctx, 0, 0, 420, 200, 20);
-      ctx.fill();
-      ctx.fillStyle = fg;
-      ctx.textAlign = "center";
-      ctx.font = "bold 34px Inter, system-ui, sans-serif";
-      ctx.fillText(line1, 210, 86, 380);
-      if (line2){
-        ctx.font = "24px Inter, system-ui, sans-serif";
-        ctx.fillStyle = "#cfe9dd";
-        ctx.fillText(line2, 210, 128, 380);
-      }
-      var tex = new THREE.CanvasTexture(c);
-      tex.needsUpdate = true;
-      return tex;
-    }
-
-    /* ---- textures procédurales (aucune image externe nécessaire) pour que
-       le sol, les murs et les étagères ressemblent à de vraies surfaces au
-       lieu d'aplats de couleur plate. ---- */
-    function speckle(ctx, w, h, count, colors){
-      for (var i = 0; i < count; i++){
-        ctx.fillStyle = colors[Math.floor(Math.random() * colors.length)];
-        var x = Math.random() * w, y = Math.random() * h;
-        var s = 1 + Math.random() * 2.5;
-        ctx.globalAlpha = 0.25 + Math.random() * 0.35;
-        ctx.fillRect(x, y, s, s);
-      }
-      ctx.globalAlpha = 1;
-    }
-    function repeatTex(canvas, rx, ry){
-      var tex = new THREE.CanvasTexture(canvas);
-      tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-      tex.repeat.set(rx, ry);
-      tex.needsUpdate = true;
-      return tex;
-    }
-    function concreteTexture(){
-      // sol en béton ciré poli, façon réserve professionnelle moderne :
-      // base grise claire uniforme, légers reflets, joints de dilatation nets.
-      var c = document.createElement("canvas"); c.width = c.height = 256;
-      var ctx = c.getContext("2d");
-      var grad = ctx.createLinearGradient(0,0,256,256);
-      grad.addColorStop(0, "#c3c8cb"); grad.addColorStop(1, "#aab0b4");
-      ctx.fillStyle = grad; ctx.fillRect(0, 0, 256, 256);
-      speckle(ctx, 256, 256, 500, ["#b7bcc0", "#cdd2d4", "#9ea4a8"]);
-      // joints de dilatation réguliers (grille propre, pas de fissures)
-      ctx.strokeStyle = "rgba(70,76,80,.35)"; ctx.lineWidth = 1.2;
-      for (var gx = 0; gx <= 256; gx += 64){
-        ctx.beginPath(); ctx.moveTo(gx, 0); ctx.lineTo(gx, 256); ctx.stroke();
-      }
-      for (var gy = 0; gy <= 256; gy += 64){
-        ctx.beginPath(); ctx.moveTo(0, gy); ctx.lineTo(256, gy); ctx.stroke();
-      }
-      return repeatTex(c, 7, 5);
-    }
-    function wallTexture(){
-      // panneaux muraux modernes lisses (type salle de stockage professionnelle),
-      // avec un fin liseré de marque plutôt que de la tôle ondulée brute.
-      var c = document.createElement("canvas"); c.width = 256; c.height = 128;
-      var ctx = c.getContext("2d");
-      ctx.fillStyle = "#dde1e3"; ctx.fillRect(0, 0, 256, 128);
-      speckle(ctx, 256, 128, 180, ["#e4e7e9", "#d2d7d9"]);
-      // panneaux muraux verticaux, joints discrets
-      ctx.strokeStyle = "rgba(140,150,155,.35)"; ctx.lineWidth = 1.2;
-      for (var x = 0; x <= 256; x += 64){
-        ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, 128); ctx.stroke();
-      }
-      // liseré de marque (vert eMarket-Palace) à mi-hauteur
-      ctx.fillStyle = "#3fae84";
-      ctx.fillRect(0, 86, 256, 5);
-      return repeatTex(c, 5, 2);
-    }
-    function metalTexture(){
-      // acier brossé clair (rayonnages/pieds de mobilier pro) plutôt qu'un métal
-      // terne : base gris-acier avec un fin veinage horizontal brossé.
-      var c = document.createElement("canvas"); c.width = 128; c.height = 128;
-      var ctx = c.getContext("2d");
-      var grad = ctx.createLinearGradient(0,0,0,128);
-      grad.addColorStop(0, "#c9ced1"); grad.addColorStop(0.5, "#9aa0a4"); grad.addColorStop(1, "#b7bcbf");
-      ctx.fillStyle = grad; ctx.fillRect(0, 0, 128, 128);
-      for (var y = 0; y < 128; y += 1){
-        ctx.fillStyle = Math.random() > 0.5 ? "rgba(255,255,255,.08)" : "rgba(40,44,46,.06)";
-        ctx.fillRect(0, y, 128, 1);
-      }
-      return repeatTex(c, 2, 2);
-    }
-    function blackMetalTexture(){
-      // montants d'étagère en métal noir mat, comme un vrai rayonnage de
-      // réserve professionnelle (cf. référence visuelle fournie).
-      var c = document.createElement("canvas"); c.width = 128; c.height = 128;
-      var ctx = c.getContext("2d");
-      var grad = ctx.createLinearGradient(0,0,0,128);
-      grad.addColorStop(0, "#35383b"); grad.addColorStop(0.5, "#202224"); grad.addColorStop(1, "#2c2f31");
-      ctx.fillStyle = grad; ctx.fillRect(0, 0, 128, 128);
-      for (var y = 0; y < 128; y += 1){
-        ctx.fillStyle = Math.random() > 0.5 ? "rgba(255,255,255,.04)" : "rgba(0,0,0,.08)";
-        ctx.fillRect(0, y, 128, 1);
-      }
-      return repeatTex(c, 2, 2);
-    }
-    function cardboardTexture(title){
-      // carton kraft étiqueté, bien rangé — comme sur la réserve de référence.
-      var c = document.createElement("canvas"); c.width = 200; c.height = 200;
-      var ctx = c.getContext("2d");
-      ctx.fillStyle = "#c7a16e"; ctx.fillRect(0, 0, 200, 200);
-      speckle(ctx, 200, 200, 140, ["#b8935f", "#d2ac7c", "#a9835399"]);
-      ctx.strokeStyle = "rgba(90,65,35,.5)"; ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.moveTo(0, 14); ctx.lineTo(200, 14); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(0, 100); ctx.lineTo(200, 100); ctx.stroke();
-      // étiquette blanche
-      ctx.fillStyle = "#f4efe6";
-      ctx.fillRect(18, 118, 100, 42);
-      ctx.strokeStyle = "rgba(40,30,15,.4)"; ctx.lineWidth = 1.5;
-      ctx.strokeRect(18, 118, 100, 42);
-      ctx.fillStyle = "#2a2420";
-      ctx.fillRect(28, 130, 80, 3);
-      ctx.fillRect(28, 140, 55, 3);
-      return new THREE.CanvasTexture(c);
-    }
-    function woodTexture(){
-      // bois clair type chêne/bouleau (mobilier de bureau professionnel)
-      // plutôt qu'un bois brut sombre.
-      var c = document.createElement("canvas"); c.width = 256; c.height = 128;
-      var ctx = c.getContext("2d");
-      ctx.fillStyle = "#c9a876"; ctx.fillRect(0, 0, 256, 128);
-      for (var y = 0; y < 128; y += 3){
-        ctx.fillStyle = "rgba(" + (170+Math.random()*40|0) + "," + (140+Math.random()*30|0) + "," + (95+Math.random()*25|0) + ",.5)";
-        ctx.fillRect(0, y, 256, 2 + Math.random()*2);
-      }
-      return repeatTex(c, 2, 1);
-    }
-
-    /* petit coin bureau fixe dans l'arrière-boutique (décor, non cliquable) :
-       un bureau, un écran, une chaise, comme dans une vraie réserve de boutique. */
-    function buildOfficeCorner(){
-      var woodTex = woodTexture();
-      var metalTex = metalTexture();
-      var blackMetalTex = blackMetalTexture();
-      var office = new THREE.Group();
-      office.position.set(3.0, 0, -2.9);
-      office.rotation.y = Math.PI * 0.82;
-
-      // bureau à deux niveaux, cadre métal noir (comme la vraie table d'atelier) —
-      // plateau haut en bois clair, étagère basse en métal noir avec des cartons.
-      var frameMat = new THREE.MeshStandardMaterial({ map: blackMetalTex, roughness:0.5, metalness:0.5 });
-
-      var deskTop = new THREE.Mesh(
-        new THREE.BoxGeometry(1.5, 0.06, 0.75),
-        new THREE.MeshStandardMaterial({ map: woodTex, roughness:0.6 })
-      );
-      deskTop.position.y = 0.78;
-      deskTop.castShadow = true;
-      deskTop.receiveShadow = true;
-      office.add(deskTop);
-
-      var lowerShelf = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.05, 0.75), frameMat);
-      lowerShelf.position.y = 0.32;
-      lowerShelf.receiveShadow = true;
-      office.add(lowerShelf);
-
-      // pieds et montants en métal noir
-      [[-0.68,-0.3],[0.68,-0.3],[-0.68,0.3],[0.68,0.3]].forEach(function(pos){
-        var leg = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.78, 0.05), frameMat);
-        leg.position.set(pos[0], 0.39, pos[1]);
-        leg.castShadow = true;
-        office.add(leg);
-      });
-
-      // cartons kraft étiquetés "eMarket-Palace HQ" sur l'étagère basse
-      [[-0.42,-0.15],[0.0,-0.15]].forEach(function(pos){
-        var hqBox = new THREE.Mesh(
-          new THREE.BoxGeometry(0.42, 0.3, 0.32),
-          new THREE.MeshStandardMaterial({ map: cardboardTexture(), roughness:0.9 })
-        );
-        hqBox.position.set(pos[0], 0.5, pos[1]);
-        hqBox.castShadow = true;
-        office.add(hqBox);
-        var hqTex = textTexture("eMarket-Palace", "HQ", "#00000000", "#5a4a32");
-        var hqLabel = new THREE.Mesh(
-          new THREE.PlaneGeometry(0.4, 0.17),
-          new THREE.MeshBasicMaterial({ map: hqTex, transparent:true })
-        );
-        hqLabel.position.set(pos[0], 0.5, pos[1] + 0.17);
-        office.add(hqLabel);
-      });
-
-      // écran d'ordinateur
-      var screenTex = textTexture("eMarket-Palace", "Tableau de bord", "#16321f", "#9fe8c2");
-      var monitor = new THREE.Group();
-      var screen = new THREE.Mesh(
-        new THREE.BoxGeometry(0.55, 0.36, 0.03),
-        new THREE.MeshStandardMaterial({ color:0x1a1814 })
-      );
-      screen.position.y = 0.26;
-      monitor.add(screen);
-      var screenFace = new THREE.Mesh(
-        new THREE.PlaneGeometry(0.48, 0.3),
-        new THREE.MeshBasicMaterial({ map: screenTex })
-      );
-      screenFace.position.set(0, 0.26, 0.016);
-      monitor.add(screenFace);
-      var stand = new THREE.Mesh(
-        new THREE.BoxGeometry(0.06, 0.1, 0.06),
-        new THREE.MeshStandardMaterial({ color:0x2a2822 })
-      );
-      stand.position.y = 0.05;
-      monitor.add(stand);
-      monitor.position.set(0, 0.81, -0.15);
-      office.add(monitor);
-
-      // clavier
-      var keyboard = new THREE.Mesh(
-        new THREE.BoxGeometry(0.4, 0.02, 0.16),
-        new THREE.MeshStandardMaterial({ color:0x2a2822 })
-      );
-      keyboard.position.set(0, 0.825, 0.18);
-      office.add(keyboard);
-
-      // petite lampe de bureau
-      var lampBase = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.05, 0.06, 0.03, 10),
-        new THREE.MeshStandardMaterial({ map: metalTex, metalness:0.5 })
-      );
-      lampBase.position.set(0.55, 0.81, -0.2);
-      office.add(lampBase);
-      var lampHead = new THREE.Mesh(
-        new THREE.SphereGeometry(0.05, 10, 10),
-        new THREE.MeshStandardMaterial({ color:0xfff3d6, emissive:0xfff3d6, emissiveIntensity:0.8 })
-      );
-      lampHead.position.set(0.55, 0.95, -0.2);
-      office.add(lampHead);
-      var deskLamp = new THREE.PointLight(0xfff0d0, 0.4, 3, 2);
-      deskLamp.position.set(0.55, 0.95, -0.2);
-      office.add(deskLamp);
-
-      // chaise (siège + dossier)
-      var chairMat = new THREE.MeshStandardMaterial({ color:0x2e3338, roughness:0.75 });
-      var seat = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.06, 0.42), chairMat);
-      seat.position.set(0, 0.46, 0.65);
-      seat.castShadow = true;
-      office.add(seat);
-      var back = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.5, 0.06), chairMat);
-      back.position.set(0, 0.72, 0.84);
-      back.castShadow = true;
-      office.add(back);
-      var seatPole = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.03, 0.03, 0.46, 8),
-        new THREE.MeshStandardMaterial({ map: metalTex, metalness:0.6 })
-      );
-      seatPole.position.set(0, 0.23, 0.65);
-      office.add(seatPole);
-
-      scene.add(office);
-    }
-
-    function clearShelves(){
-      while (shelfGroup.children.length) shelfGroup.remove(shelfGroup.children[0]);
-      clickable = [];
-      selectedHit = null;
-      if (selectionHighlight) selectionHighlight.visible = false;
-      var tip = document.getElementById("bo-tip");
-      if (tip) tip.textContent = "Clic = sélectionner · double-clic = fiche produit · clic droit = gérer";
-    }
-
-    function buildBackoffice(products){
-      clearShelves();
-      currentProducts = products;
-
-      var metalTex = metalTexture();
-      var woodTex = woodTexture();
-      var blackMetalTex = blackMetalTexture();
-
-      // portant à vêtements + échelle roulante, décor fixe de la réserve
-      // (comme sur la vraie photo), indépendant des produits en stock.
-      (function(){
-        var railMat = new THREE.MeshStandardMaterial({ map: blackMetalTex, roughness:0.5, metalness:0.55 });
-        var railGroup = new THREE.Group();
-        railGroup.position.set(2.0, 0, -2.0);
-        var railH = 1.55, railLen = 1.5;
-        [[-railLen/2,0],[railLen/2,0]].forEach(function(p){
-          var post = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, railH, 8), railMat);
-          post.position.set(p[0], railH/2, p[1]);
-          railGroup.add(post);
-        });
-        var bar = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, railLen, 8), railMat);
-        bar.rotation.z = Math.PI/2;
-        bar.position.set(0, railH, 0);
-        railGroup.add(bar);
-        var shirtColors = [0xd8d2c4, 0x8a93a0, 0x3d4652, 0xc9b79c, 0x6b7a6e];
-        for (var i = 0; i < 5; i++){
-          var shirt = new THREE.Mesh(
-            new THREE.BoxGeometry(0.2, 0.42, 0.05),
-            new THREE.MeshStandardMaterial({ color: shirtColors[i], roughness:0.85 })
-          );
-          shirt.position.set(-railLen/2 + 0.15 + i * 0.3, railH - 0.28, 0);
-          shirt.castShadow = true;
-          railGroup.add(shirt);
-        }
-        shelfGroup.add(railGroup);
-
-        // échelle roulante inclinée contre l'étagère
-        var ladder = new THREE.Group();
-        ladder.position.set(0.75, 0, -2.65);
-        ladder.rotation.y = Math.PI * 0.08;
-        ladder.rotation.x = -0.12;
-        var sideMat = new THREE.MeshStandardMaterial({ map: blackMetalTex, roughness:0.5, metalness:0.5 });
-        [[-0.18,0],[0.18,0]].forEach(function(p){
-          var side = new THREE.Mesh(new THREE.BoxGeometry(0.03, 2.0, 0.03), sideMat);
-          side.position.set(p[0], 1.0, p[1]);
-          ladder.add(side);
-        });
-        for (var r = 0; r < 6; r++){
-          var rung = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.02, 0.03), sideMat);
-          rung.position.set(0, 0.2 + r * 0.32, 0);
-          ladder.add(rung);
-        }
-        shelfGroup.add(ladder);
-      })();
-
-      // comptoir "+ Nouveau produit", toujours présent, à gauche de la scène
-      var counter = new THREE.Group();
-      counter.position.set(-2.7, 0, 1.3);
-      var baseGeo = new THREE.BoxGeometry(2.4, 1.1, 1.1);
-      var baseMat = new THREE.MeshStandardMaterial({ map: woodTex, roughness:0.7 });
-      var base = new THREE.Mesh(baseGeo, baseMat);
-      base.position.y = 0.55;
-      base.castShadow = true;
-      base.receiveShadow = true;
-      counter.add(base);
-      var counterTrim = new THREE.Mesh(
-        new THREE.BoxGeometry(2.42, 0.08, 1.12),
-        new THREE.MeshStandardMaterial({ color:0x3fae84, emissive:0x3fae84, emissiveIntensity:0.12, roughness:0.3, metalness:0.35 })
-      );
-      counterTrim.position.y = 1.1;
-      counter.add(counterTrim);
-      var signTex = textTexture("+ Nouveau produit", "Ajouter au stock", "#16242b", "#f2f5f6");
-      var sign = new THREE.Mesh(
-        new THREE.PlaneGeometry(2.1, 1.0),
-        new THREE.MeshBasicMaterial({ map: signTex, transparent:true })
-      );
-      sign.position.set(0, 1.5, 0.56);
-      counter.add(sign);
-      shelfGroup.add(counter);
-      clickable.push({ mesh: base, kind: "add" });
-
-      if (products.length === 0) return;
-
-      var cols = Math.min(products.length, 3);
-      var spacing = 2.1;
-      var totalWidth = (cols - 1) * spacing;
-      var startX = -totalWidth / 2 + 0.6; // décalé pour laisser de la place au comptoir
-      var rowZ = -2.9;
-
-      products.forEach(function(p, i){
-        var col = i % cols;
-        var row = Math.floor(i / cols);
-        var x = startX + col * spacing;
-        var z = rowZ - row * 2.3;
-
-        var group = new THREE.Group();
-        group.position.set(x, 0, z);
-
-        var stock = (p.stock_quantity == null) ? 0 : p.stock_quantity;
-        var frameColor = p.en_vitrine ? 0x3fae84 : 0x6b645c;
-
-        // vraie étagère métallique à 3 niveaux (montants + planches), comme
-        // un rayonnage d'entrepôt réel, plutôt qu'un simple bloc plein.
-        var rackW = 1.9, rackD = 0.6, rackH = 2.3;
-        var poleMat = new THREE.MeshStandardMaterial({ map: blackMetalTex, roughness:0.5, metalness:0.55 });
-        var plankMat = new THREE.MeshStandardMaterial({ map: blackMetalTex, roughness:0.5, metalness:0.5 });
-        [[-rackW/2,-rackD/2], [rackW/2,-rackD/2], [-rackW/2,rackD/2], [rackW/2,rackD/2]].forEach(function(pos){
-          var pole = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, rackH, 8), poleMat);
-          pole.position.set(pos[0], rackH/2, pos[1]);
-          pole.castShadow = true;
-          group.add(pole);
-        });
-        var shelfYs = [0.05, 1.05, rackH];
-        shelfYs.forEach(function(y){
-          var plank = new THREE.Mesh(new THREE.BoxGeometry(rackW + 0.08, 0.06, rackD + 0.08), plankMat);
-          plank.position.y = y;
-          plank.castShadow = true;
-          plank.receiveShadow = true;
-          group.add(plank);
-        });
-        // large boîte invisible pour faciliter le clic (zone de détection)
-        var hitbox = new THREE.Mesh(
-          new THREE.BoxGeometry(rackW + 0.1, rackH, rackD + 0.3),
-          new THREE.MeshBasicMaterial({ transparent:true, opacity:0 })
-        );
-        hitbox.position.y = rackH/2;
-        group.add(hitbox);
-
-        // liseré de couleur (vert = en vitrine, gris = pas en vitrine)
-        var stripe = new THREE.Mesh(
-          new THREE.BoxGeometry(rackW + 0.1, 0.07, 0.07),
-          new THREE.MeshStandardMaterial({ color: frameColor, emissive: frameColor, emissiveIntensity:0.18 })
-        );
-        stripe.position.set(0, rackH + 0.08, rackD/2 + 0.04);
-        group.add(stripe);
-
-        // caisses en carton empilées sur l'étagère du milieu, représentant le stock (jusqu'à 6 visibles)
-        var crateCount = Math.min(stock, 6);
-        var crateMat = new THREE.MeshStandardMaterial({ map: cardboardTexture(), roughness:0.9 });
-        for (var c = 0; c < crateCount; c++){
-          var cc = c % 3;
-          var rr = Math.floor(c / 3);
-          var crate = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.4, 0.4), crateMat);
-          crate.position.set(-0.55 + cc * 0.55, 1.05 + 0.23 + rr * 0.44, 0.02);
-          crate.castShadow = true;
-          crate.receiveShadow = true;
-          group.add(crate);
-        }
-        if (stock <= 0){
-          var emptyTex = textTexture("Rupture", p.title, "#241318", "#e2715c");
-          var emptySign = new THREE.Mesh(new THREE.PlaneGeometry(1.7, 0.8), new THREE.MeshBasicMaterial({ map: emptyTex, transparent:true }));
-          emptySign.position.set(0, rackH + 0.55, rackD/2 + 0.04);
-          group.add(emptySign);
-        } else {
-          var tex = textTexture(p.title, (isNaN(Number(p.price)) ? "" : Number(p.price).toLocaleString("fr-FR") + " $") + " · stock " + stock, "#16242b", "#f2f5f6");
-          var labelSign = new THREE.Mesh(new THREE.PlaneGeometry(1.9, 0.9), new THREE.MeshBasicMaterial({ map: tex, transparent:true }));
-          labelSign.position.set(0, rackH + 0.55, rackD/2 + 0.04);
-          group.add(labelSign);
-        }
-
-        shelfGroup.add(group);
-        clickable.push({ mesh: hitbox, kind: "edit", product: p });
-      });
-    }
-
-    function refreshBackoffice(){
-      if (!boReady) return;
-      document.getElementById("bo-hud-sub").textContent = "Chargement du stock...";
-      client.from("products").select("*").eq("store_id", myStore.id).order("created_at", { ascending: true })
-        .then(function(res){
-          if (res.error) throw res.error;
-          var products = res.data || [];
-          buildBackoffice(products);
-          document.getElementById("bo-hud-sub").textContent =
-            products.length + (products.length === 1 ? " produit en stock" : " produits en stock");
-          loadingBox.style.opacity = "0";
-          setTimeout(function(){ loadingBox.style.display = "none"; }, 300);
-        })
-        .catch(function(err){
-          document.getElementById("bo-hud-sub").textContent = "Erreur : " + (err.message || err);
-        });
-    }
-
-    // ---- panneau latéral : ajouter / éditer un produit ----
-    var boPanel = document.getElementById("bo-panel");
-    var boPanelBody = document.getElementById("bo-panel-body");
-
-    function closeBoPanel(){ boPanel.classList.remove("open"); }
-
-    function panelMsg(text, kind){
-      var box = document.getElementById("bo-panel-msg");
-      if (!box) return;
-      box.textContent = text || "";
-      box.className = "" + (kind || "");
-      // le panneau peut être scrollé loin de ce message (en haut du panneau) :
-      // on le ramène toujours en vue pour qu'un message ne passe pas inaperçu.
-      if (text) box.scrollIntoView({ behavior: "smooth", block: "nearest" });
-    }
-
-    function openProductDetailPanel(p){
-      var stock = (p.stock_quantity == null) ? 0 : p.stock_quantity;
-      document.getElementById("bo-panel-title").textContent = p.title;
-      boPanelBody.innerHTML =
-        '<div id="bo-panel-msg"></div>' +
-        (p.image_url ? '<div id="bo-img-preview" style="width:100%;height:160px"><img src="' + escapeHtml(p.image_url) + '"></div>' : '<div style="font-size:.78rem; color:#a69d8f">Pas encore de photo pour ce produit.</div>') +
-        '<div style="font-size:1.1rem; font-weight:700; color:#f2eee6">' + (isNaN(Number(p.price)) ? "—" : Number(p.price).toLocaleString("fr-FR") + " $") + '</div>' +
-        '<div style="display:flex; gap:8px; flex-wrap:wrap">' +
-          '<span class="pill' + (stock > 0 ? ' active' : '') + '">' + (stock > 0 ? "Stock " + stock : "Rupture de stock") + '</span>' +
-          '<span class="pill' + (p.en_vitrine ? ' active' : '') + '">' + (p.en_vitrine ? "En vitrine" : "Pas en vitrine") + '</span>' +
-          '<span class="pill' + (p.is_active ? ' active' : '') + '">' + (p.is_active ? "En ligne" : "Masqué") + '</span>' +
-        '</div>' +
-        (p.description ? '<div style="font-size:.85rem; color:#cfc8ba; white-space:pre-wrap">' + escapeHtml(p.description) + '</div>' : '<div style="font-size:.8rem; color:#a69d8f">Pas de description.</div>') +
-        '<button id="bo-btn-goto-manage">Gérer ce produit</button>';
-
-      document.getElementById("bo-btn-goto-manage").addEventListener("click", function(){ openEditProductPanel(p); });
-
-      boPanel.classList.add("open");
-    }
-
-    function openAddProductPanel(){
-      panelMode = "add";
-      panelProduct = null;
-      document.getElementById("bo-panel-title").textContent = "Ajouter un produit";
-      boPanelBody.innerHTML =
-        '<div id="bo-panel-msg"></div>' +
-        '<label>Nom du produit <input type="text" id="bo-p-title" placeholder="Ex. Robe wax bleue"></label>' +
-        '<label>Photo du produit <input type="file" id="bo-p-image" accept="image/*"></label>' +
-        '<div id="bo-img-preview" class="hidden"></div>' +
-        '<label>Prix ($) <input type="number" id="bo-p-price" min="0" step="0.01" placeholder="25"></label>' +
-        '<label>Quantité en stock <input type="number" id="bo-p-stock" min="0" step="1" value="1"></label>' +
-        '<label>Description <textarea id="bo-p-description" placeholder="Taille, matière, couleur..."></textarea></label>' +
-        '<label style="flex-direction:row; align-items:center; gap:8px">' +
-          '<input type="checkbox" id="bo-p-vitrine" checked style="width:auto; padding:0">' +
-          '<span>Mettre en vitrine dans la galerie 3D</span>' +
-        '</label>' +
-        '<button id="bo-btn-add-product">Ajouter au stock</button>';
-
-      var imgInput = document.getElementById("bo-p-image");
-      var imgPreview = document.getElementById("bo-img-preview");
-      imgInput.addEventListener("change", function(){
-        var file = imgInput.files && imgInput.files[0];
-        if (!file){ imgPreview.classList.add("hidden"); imgPreview.innerHTML = ""; return; }
-        var url = URL.createObjectURL(file);
-        imgPreview.innerHTML = '<img src="' + url + '">';
-        imgPreview.classList.remove("hidden");
-      });
-
-      document.getElementById("bo-btn-add-product").addEventListener("click", function(){
-        panelMsg("", "");
-        var title = document.getElementById("bo-p-title").value.trim();
-        var price = parseFloat(document.getElementById("bo-p-price").value);
-        var description = document.getElementById("bo-p-description").value.trim();
-        var stock = parseInt(document.getElementById("bo-p-stock").value, 10);
-        var enVitrine = document.getElementById("bo-p-vitrine").checked;
-        var imageFile = imgInput.files && imgInput.files[0];
-        if (!title || isNaN(price)){
-          panelMsg("Donne au moins un nom et un prix valides.", "error");
-          return;
-        }
-        if (isNaN(stock) || stock < 0) stock = 0;
-        var btn = document.getElementById("bo-btn-add-product");
-        btn.disabled = true;
-
-        (imageFile ? uploadProductImage(imageFile) : Promise.resolve(null))
-          .then(function(imageUrl){
-            return client.from("products").insert({
-              store_id: myStore.id,
-              title: title,
-              price: price,
-              description: description,
-              is_active: true,
-              stock_quantity: stock,
-              en_vitrine: enVitrine,
-              image_url: imageUrl
-            });
-          })
-          .then(function(res){
-            if (res.error) throw res.error;
-            closeBoPanel();
-            refreshBackoffice();
-          })
-          .catch(function(err){ panelMsg(translateError(err), "error"); })
-          .finally(function(){ btn.disabled = false; });
-      });
-
-      boPanel.classList.add("open");
-    }
-
-    // demande une confirmation avant une action qui modifie le stock :
-    // le premier clic arme le bouton (change son texte), le second clic,
-    // dans les quelques secondes qui suivent, exécute réellement l'action.
-    function armConfirm(btn, confirmLabel, originalLabel, action){
-      if (btn.dataset.armed === "1"){
-        btn.dataset.armed = "0";
-        btn.textContent = originalLabel;
-        clearTimeout(btn._confirmTimeout);
-        panelMsg("", "");
-        action();
-      } else {
-        btn.dataset.armed = "1";
-        btn.textContent = confirmLabel;
-        panelMsg("Clique à nouveau pour confirmer.", "");
-        btn._confirmTimeout = setTimeout(function(){
-          btn.dataset.armed = "0";
-          btn.textContent = originalLabel;
-          panelMsg("", "");
-        }, 4000);
-      }
-    }
-
-    // ---- procédure d'inventaire : toute révision de stock doit être
-    // confirmée par un lien reçu par email avant d'être appliquée ----
-    var STOCK_CONFIRM_KEY = "emp_stock_confirm_pending";
-
-    function requestStockConfirmationByEmail(p, newStock){
-      var ref = "sc" + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
-      var redirectUrl = location.origin + location.pathname + "?confirm_stock=" + encodeURIComponent(ref);
-      return client.auth.signInWithOtp({
-        email: currentUser.email,
-        options: { emailRedirectTo: redirectUrl, shouldCreateUser: false }
-      }).then(function(res){
-        if (res.error) throw res.error;
-        localStorage.setItem(STOCK_CONFIRM_KEY, JSON.stringify({
-          ref: ref,
-          productId: p.id,
-          productTitle: p.title,
-          newStock: newStock,
-          requestedAt: Date.now()
-        }));
-      });
-    }
-
-    function moveProductPosition(p, direction){
-      var idx = currentProducts.findIndex(function(cp){ return cp.id === p.id; });
-      if (idx === -1) return;
-      var otherIdx = idx + direction;
-      if (otherIdx < 0 || otherIdx >= currentProducts.length) return;
-      var other = currentProducts[otherIdx];
-      var myTime = p.created_at;
-      var otherTime = other.created_at;
-      panelMsg("Déplacement...", "");
-      Promise.all([
-        client.from("products").update({ created_at: otherTime }).eq("id", p.id),
-        client.from("products").update({ created_at: myTime }).eq("id", other.id)
-      ]).then(function(results){
-        if (results[0].error) throw results[0].error;
-        if (results[1].error) throw results[1].error;
-        closeBoPanel();
-        refreshBackoffice();
-      }).catch(function(err){ panelMsg(translateError(err), "error"); });
-    }
-
-    function openEditProductPanel(p){
-      panelMode = "edit";
-      panelProduct = p;
-      var stock = (p.stock_quantity == null) ? 0 : p.stock_quantity;
-      var posIdx = currentProducts.findIndex(function(cp){ return cp.id === p.id; });
-      if (posIdx === -1) posIdx = 0;
-      var posTotal = currentProducts.length;
-      document.getElementById("bo-panel-title").textContent = p.title;
-      boPanelBody.innerHTML =
-        '<div id="bo-panel-msg"></div>' +
-        (p.image_url ? '<div id="bo-img-preview"><img src="' + escapeHtml(p.image_url) + '"></div>' : '<div style="font-size:.78rem; color:#a69d8f">Pas encore de photo pour ce produit.</div>') +
-        '<label>' + (p.image_url ? "Changer la photo" : "Ajouter une photo") + ' <input type="file" id="bo-e-image" accept="image/*"></label>' +
-        '<div id="bo-image-save-wrap"></div>' +
-        '<div style="display:flex; align-items:center; gap:8px; margin-top:-2px">' +
-          '<span class="pill" id="bo-btn-move-earlier"' + (posIdx <= 0 ? ' style="opacity:.35; pointer-events:none"' : '') + '>◀ Plus tôt</span>' +
-          '<span style="font-size:.72rem; color:#a69d8f; flex:1; text-align:center">Emplacement ' + (posIdx + 1) + ' / ' + posTotal + '</span>' +
-          '<span class="pill" id="bo-btn-move-later"' + (posIdx >= posTotal - 1 ? ' style="opacity:.35; pointer-events:none"' : '') + '>Plus tard ▶</span>' +
-        '</div>' +
-        '<div style="font-size:.85rem; color:#cfc8ba">' + (isNaN(Number(p.price)) ? "" : Number(p.price).toLocaleString("fr-FR") + " $") + '</div>' +
-        '<label>Quantité en stock <input type="number" id="bo-e-stock" min="0" step="1" value="' + stock + '"></label>' +
-        '<button id="bo-btn-update-stock">Mettre à jour le stock</button>' +
-        '<div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:4px">' +
-          '<span class="pill' + (p.is_active ? ' active' : '') + '" id="bo-toggle-active">' + (p.is_active ? "En ligne" : "Masqué") + '</span>' +
-          '<span class="pill' + (p.en_vitrine ? ' active' : '') + '" id="bo-toggle-vitrine">' + (p.en_vitrine ? "Retirer de la vitrine" : "Mettre en vitrine") + '</span>' +
-        '</div>' +
-        '<button id="bo-btn-delete" style="background:transparent; color:#e2715c; border:1px solid #e2715c; margin-top:8px">Supprimer ce produit</button>';
-
-      document.getElementById("bo-e-image").addEventListener("change", function(){
-        var file = this.files && this.files[0];
-        var wrap = document.getElementById("bo-image-save-wrap");
-        wrap.innerHTML = "";
-        if (!file) return;
-        var saveBtn = document.createElement("button");
-        saveBtn.id = "bo-btn-save-image";
-        saveBtn.textContent = "Enregistrer la photo";
-        wrap.appendChild(saveBtn);
-        saveBtn.addEventListener("click", function(){
-          armConfirm(saveBtn, "Confirmer l'envoi de la photo ?", "Enregistrer la photo", function(){
-            panelMsg("Envoi de la photo...", "");
-            uploadProductImage(file)
-              .then(function(imageUrl){
-                return client.from("products").update({ image_url: imageUrl }).eq("id", p.id);
-              })
-              .then(function(res2){
-                if (res2.error) throw res2.error;
-                panelMsg("Photo enregistrée.", "ok");
-                closeBoPanel();
-                refreshBackoffice();
-              })
-              .catch(function(err){ panelMsg(translateError(err), "error"); });
-          });
-        });
-      });
-      document.getElementById("bo-btn-update-stock").addEventListener("click", function(){
-        var btn = this;
-        var newStock = parseInt(document.getElementById("bo-e-stock").value, 10);
-        if (isNaN(newStock) || newStock < 0) newStock = 0;
-        if (newStock === stock){
-          panelMsg("Le stock est déjà à " + newStock + ".", "");
-          return;
-        }
-        btn.disabled = true;
-        requestStockConfirmationByEmail(p, newStock)
-          .then(function(){
-            panelMsg("Email de confirmation envoyé à " + currentUser.email + ". Ouvre le lien reçu pour valider cette révision de stock.", "ok");
-            renderProcessMenu();
-          })
-          .catch(function(err){ panelMsg(translateError(err), "error"); })
-          .finally(function(){ btn.disabled = false; });
-      });
-      document.getElementById("bo-btn-move-earlier").addEventListener("click", function(){
-        var btn = this;
-        armConfirm(btn, "Confirmer ?", "◀ Plus tôt", function(){ moveProductPosition(p, -1); });
-      });
-      document.getElementById("bo-btn-move-later").addEventListener("click", function(){
-        var btn = this;
-        armConfirm(btn, "Confirmer ?", "Plus tard ▶", function(){ moveProductPosition(p, 1); });
-      });
-      document.getElementById("bo-toggle-active").addEventListener("click", function(){
-        var btn = this;
-        var originalLabel = p.is_active ? "En ligne" : "Masqué";
-        var confirmLabel = p.is_active ? "Confirmer : masquer ?" : "Confirmer : mettre en ligne ?";
-        armConfirm(btn, confirmLabel, originalLabel, function(){
-          client.from("products").update({ is_active: !p.is_active }).eq("id", p.id)
-            .then(function(res2){ if (res2.error) throw res2.error; closeBoPanel(); refreshBackoffice(); })
-            .catch(function(err){ panelMsg(translateError(err), "error"); });
-        });
-      });
-      document.getElementById("bo-toggle-vitrine").addEventListener("click", function(){
-        var btn = this;
-        var originalLabel = p.en_vitrine ? "Retirer de la vitrine" : "Mettre en vitrine";
-        var confirmLabel = p.en_vitrine ? "Confirmer : retirer de la vitrine ?" : "Confirmer : mettre en vitrine ?";
-        armConfirm(btn, confirmLabel, originalLabel, function(){
-          client.from("products").update({ en_vitrine: !p.en_vitrine }).eq("id", p.id)
-            .then(function(res2){ if (res2.error) throw res2.error; closeBoPanel(); refreshBackoffice(); })
-            .catch(function(err){ panelMsg(translateError(err), "error"); });
-        });
-      });
-      document.getElementById("bo-btn-delete").addEventListener("click", function(){
-        var btn = this;
-        armConfirm(btn, "Confirmer la suppression ?", "Supprimer ce produit", function(){
-          client.from("products").delete().eq("id", p.id)
-            .then(function(res2){ if (res2.error) throw res2.error; closeBoPanel(); refreshBackoffice(); })
-            .catch(function(err){ panelMsg(translateError(err), "error"); });
-        });
-      });
-
-      boPanel.classList.add("open");
-    }
-  });
+"use strict";
+var SUPABASE_URL = "https://dnwfbnhvxnoyosjuzxxs.supabase.co";
+var SUPABASE_KEY = "sb_publishable_oWWjQGlbhIl7FGsB5cK75w_PlNeDmpf";
+var BACKOFFICE_DECOR_IMG = "backoffice-decor.jpg";
+
+var mode = "login";
+var currentUser = null;
+var myStore = null;
+var client = null;
+
+var msgBox = document.getElementById("msg-box");
+var headerSub = document.getElementById("header-sub");
+var viewAuth = document.getElementById("view-auth");
+var viewCreateStore = document.getElementById("view-create-store");
+var viewDashboard = document.getElementById("view-dashboard");
+
+document.getElementById("bo-hero").style.backgroundImage = "url('" + BACKOFFICE_DECOR_IMG + "')";
+
+function showMsg(text, kind){
+msgBox.innerHTML = "";
+if (!text) return;
+var div = document.createElement("div");
+div.className = "msg " + (kind || "");
+div.textContent = text;
+msgBox.appendChild(div);
+}
+
+function escapeHtml(s){
+return String(s == null ? "" : s).replace(/[&<>"']/g, function(c){
+return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];
+});
+}
+
+function translateError(err){
+var m = (err && err.message) || String(err);
+if (/already registered|already exists/i.test(m)) return "Cette adresse email a déjà un compte.";
+if (/invalid login credentials/i.test(m)) return "Email ou mot de passe incorrect.";
+if (/password/i.test(m) && /short|least/i.test(m)) return "Le mot de passe est trop court (6 caractères minimum).";
+if (/row-level security|rls/i.test(m)) return "Accès refusé par la base de données.";
+return m;
+}
+
+/* ---- chargement robuste de Supabase, avec sources de secours ---- */
+function loadScript(urls, onDone, onFail){
+var i = 0;
+function tryNext(){
+if (i >= urls.length){ if (onFail) onFail(); return; }
+var url = urls[i++];
+var s = document.createElement("script");
+s.src = url;
+s.onload = onDone;
+s.onerror = tryNext;
+document.head.appendChild(s);
+}
+tryNext();
+}
+
+var libsReady = new Promise(function(resolve, reject){
+loadScript([
+"https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js",
+"https://unpkg.com/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"
+], function(){
+client = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+resolve();
+}, reject);
+});
+
+libsReady.catch(function(){
+showMsg("Certaines librairies n'ont pas pu se charger (connexion internet ou bloqueur de script). Recharge la page.", "error");
+});
+
+libsReady.then(function(){
+// ---- AUTH ----
+document.getElementById("tab-login").addEventListener("click", function(){
+mode = "login";
+document.getElementById("tab-login").classList.add("active");
+document.getElementById("tab-signup").classList.remove("active");
+document.getElementById("auth-name").classList.add("hidden");
+document.getElementById("btn-auth").textContent = "Se connecter";
+});
+document.getElementById("tab-signup").addEventListener("click", function(){
+mode = "signup";
+document.getElementById("tab-signup").classList.add("active");
+document.getElementById("tab-login").classList.remove("active");
+document.getElementById("auth-name").classList.remove("hidden");
+document.getElementById("btn-auth").textContent = "Créer mon compte";
+});
+
+document.getElementById("btn-auth").addEventListener("click", function(){
+showMsg("", "");
+var name = document.getElementById("auth-name").value.trim();
+var email = document.getElementById("auth-email").value.trim();
+var password = document.getElementById("auth-password").value;
+var btn = document.getElementById("btn-auth");
+btn.disabled = true;
+
+var action = mode === "signup"
+? client.auth.signUp({ email: email, password: password })
+: client.auth.signInWithPassword({ email: email, password: password });
+
+action.then(function(res){
+if (res.error) throw res.error;
+var user = res.data && res.data.user;
+if (!user) throw new Error("Vérifie ton email pour confirmer ton compte avant de te connecter.");
+currentUser = user;
+return client.from("profiles")
+.upsert({ id: user.id, full_name: name || email.split("@")[0], role: "merchant" })
+.then(function(profRes){
+if (profRes.error){
+console.warn("Impossible de créer/mettre à jour le profil (sera retenté à la prochaine connexion) :", profRes.error);
+}
+});
+})
+.then(function(){
+headerSub.textContent = "Connecté comme " + email;
+viewAuth.classList.add("hidden");
+loadMyStore();
+})
+.catch(function(err){ showMsg(translateError(err), "error"); })
+.finally(function(){ btn.disabled = false; });
+});
+
+// ---- STORE ----
+function loadMyStore(){
+client.from("stores").select("*").eq("merchant_id", currentUser.id).limit(1).maybeSingle()
+.then(function(res){
+if (res.error) throw res.error;
+myStore = res.data;
+if (!myStore){
+viewCreateStore.classList.remove("hidden");
+} else {
+showDashboard();
+}
+})
+.catch(function(err){ showMsg(translateError(err), "error"); });
+}
+
+document.getElementById("btn-create-store").addEventListener("click", function(){
+showMsg("", "");
+var store_name = document.getElementById("store_name").value.trim();
+var category = document.getElementById("store_category").value;
+var description = document.getElementById("store_description").value.trim();
+if (!store_name || !category){
+showMsg("Donne au moins un nom et une catégorie à ta boutique.", "error");
+return;
+}
+
+var btn = document.getElementById("btn-create-store");
+btn.disabled = true;
+
+client.from("profiles")
+.upsert({
+id: currentUser.id,
+role: "merchant",
+full_name: (currentUser.user_metadata && currentUser.user_metadata.full_name) || (currentUser.email ? currentUser.email.split("@")[0] : "Commerçant")
+})
+.then(function(profRes){
+if (profRes.error) throw profRes.error;
+return client.from("stores").insert({
+merchant_id: currentUser.id,
+store_name: store_name,
+category: category,
+description: description,
+subscription_status: "pending"
+}).select().single();
+})
+.then(function(res){
+if (res.error) throw res.error;
+myStore = res.data;
+viewCreateStore.classList.add("hidden");
+showDashboard();
+})
+.catch(function(err){ showMsg(translateError(err), "error"); })
+.finally(function(){ btn.disabled = false; });
+});
+
+function showDashboard(){
+viewDashboard.classList.remove("hidden");
+document.getElementById("db-badge").textContent = (myStore.store_name || "?").trim().charAt(0).toUpperCase();
+document.getElementById("db-store-name").textContent = myStore.store_name;
+document.getElementById("db-store-cat").textContent = myStore.category;
+document.getElementById("bo-hero-title").textContent = myStore.store_name;
+refreshBackoffice();
+}
+
+// ---- TABS ----
+document.getElementById("tab-products").addEventListener("click", function(){
+document.getElementById("tab-products").classList.add("active");
+document.getElementById("tab-orders").classList.remove("active");
+document.getElementById("panel-products").classList.remove("hidden");
+document.getElementById("panel-orders").classList.add("hidden");
+});
+document.getElementById("tab-orders").addEventListener("click", function(){
+document.getElementById("tab-orders").classList.add("active");
+document.getElementById("tab-products").classList.remove("active");
+document.getElementById("panel-orders").classList.remove("hidden");
+document.getElementById("panel-products").classList.add("hidden");
+loadOrders();
+});
+
+function uploadProductImage(file){
+var ext = (file.name.split(".").pop() || "jpg").toLowerCase().replace(/[^a-z0-9]/g, "") || "jpg";
+var path = myStore.id + "/" + Date.now() + "-" + Math.random().toString(36).slice(2) + "." + ext;
+return client.storage.from("product-images").upload(path, file)
+.then(function(res){
+if (res.error) throw res.error;
+var pub = client.storage.from("product-images").getPublicUrl(path);
+return pub.data.publicUrl;
+});
+}
+
+// ================== ORDERS TAB (inchangé, simple liste) ==================
+function loadOrders(){
+var area = document.getElementById("orders-list");
+area.innerHTML = '<div class="loading">Chargement...</div>';
+client.from("order_items")
+.select("quantity, unit_price, products!inner(title, store_id), orders(status, created_at, payment_method)")
+.eq("products.store_id", myStore.id)
+.then(function(res){
+if (res.error) throw res.error;
+var rows = res.data || [];
+if (rows.length === 0){
+area.innerHTML = '<div class="empty">Aucune commande reçue pour l\'instant.</div>';
+return;
+}
+area.innerHTML = "";
+rows.forEach(function(r){
+var row = document.createElement("div");
+row.className = "item-row";
+var lineTotal = Number(r.unit_price) * r.quantity;
+var status = r.orders ? r.orders.status : "inconnu";
+var date = r.orders && r.orders.created_at ? new Date(r.orders.created_at).toLocaleDateString("fr-FR") : "";
+row.innerHTML =
+'<div class="item-info">' +
+'<div class="name">' + escapeHtml(r.products.title) + ' &times; ' + r.quantity + '</div>' +
+'<div class="meta">' + lineTotal.toLocaleString("fr-FR") + ' $ &middot; ' + date + '</div>' +
+'</div>' +
+'<span class="pill' + (status === "paid" ? " active" : "") + '">' + escapeHtml(statusLabel(status)) + '</span>';
+area.appendChild(row);
+});
+})
+.catch(function(err){
+area.innerHTML = '<div class="empty">Erreur : ' + escapeHtml(err.message || err) + '</div>';
+});
+}
+
+function statusLabel(s){
+return { paid: "Payée", preparing: "En préparation", shipped: "Expédiée", delivered: "Livrée", cancelled: "Annulée" }[s] || s;
+}
+
+// ================== ARRIÈRE-BOUTIQUE (décor photo + liste produits) ==================
+document.getElementById("bo-btn-add").addEventListener("click", openAddProductPanel);
+
+function renderBackoffice(products){
+var area = document.getElementById("bo-list");
+document.getElementById("bo-hero-sub").textContent =
+products.length + (products.length === 1 ? " produit en stock" : " produits en stock");
+
+if (products.length === 0){
+area.innerHTML = '<div class="empty">Aucun produit pour l\'instant. Clique sur « + Nouveau produit » pour commencer.</div>';
+return;
+}
+
+area.innerHTML = "";
+var selectedRow = null;
+products.forEach(function(p){
+var stock = (p.stock_quantity == null) ? 0 : p.stock_quantity;
+var row = document.createElement("div");
+row.className = "item-row";
+row.innerHTML =
+'<div class="item-info">' +
+'<div class="name">' + escapeHtml(p.title) + '</div>' +
+'<div class="meta">' + (isNaN(Number(p.price)) ? "" : Number(p.price).toLocaleString("fr-FR") + " $ &middot; ") +
+(stock <= 0 ? "Rupture de stock" : "Stock " + stock) + '</div>' +
+'</div>' +
+'<div class="actions">' +
+(p.en_vitrine ? '<span class="pill active">En vitrine</span>' : '') +
+(p.is_active ? '' : '<span class="pill">Masqué</span>') +
+'</div>';
+
+// clic simple : sélectionne/active cet emplacement (surbrillance), sans ouvrir de panneau
+row.addEventListener("click", function(){
+if (selectedRow && selectedRow !== row) selectedRow.classList.remove("selected");
+row.classList.toggle("selected");
+selectedRow = row.classList.contains("selected") ? row : null;
+});
+
+// double-clic : affiche la fiche produit (lecture) avec ses caractéristiques
+row.addEventListener("dblclick", function(){ openProductDetailPanel(p); });
+
+// clic droit : gestion complète du produit (stock, prix, photo, vitrine, en ligne, suppression)
+row.addEventListener("contextmenu", function(ev){
+ev.preventDefault();
+openEditProductPanel(p);
+});
+
+area.appendChild(row);
+});
+}
+
+function refreshBackoffice(){
+document.getElementById("bo-hero-sub").textContent = "Chargement du stock...";
+client.from("products").select("*").eq("store_id", myStore.id).order("created_at", { ascending: true })
+.then(function(res){
+if (res.error) throw res.error;
+renderBackoffice(res.data || []);
+})
+.catch(function(err){
+document.getElementById("bo-hero-sub").textContent = "Erreur : " + (err.message || err);
+});
+}
+
+// ---- panneau latéral : ajouter / éditer un produit ----
+var boPanel = document.getElementById("bo-panel");
+var boPanelBackdrop = document.getElementById("bo-panel-backdrop");
+var boPanelBody = document.getElementById("bo-panel-body");
+
+function openBoPanel(){ boPanel.classList.add("open"); boPanelBackdrop.classList.add("open"); }
+function closeBoPanel(){ boPanel.classList.remove("open"); boPanelBackdrop.classList.remove("open"); }
+boPanelBackdrop.addEventListener("click", closeBoPanel);
+document.getElementById("bo-panel-close").addEventListener("click", closeBoPanel);
+
+function panelMsg(text, kind){
+var box = document.getElementById("bo-panel-msg");
+if (!box) return;
+box.textContent = text || "";
+box.className = "" + (kind || "");
+}
+
+function openProductDetailPanel(p){
+var stock = (p.stock_quantity == null) ? 0 : p.stock_quantity;
+document.getElementById("bo-panel-title").textContent = p.title;
+boPanelBody.innerHTML =
+'<div id="bo-panel-msg"></div>' +
+(p.image_url ? '<div id="bo-img-preview" style="width:100%;height:160px"><img src="' + escapeHtml(p.image_url) + '"></div>' : '<div style="font-size:.78rem; color:#a69d8f">Pas encore de photo pour ce produit.</div>') +
+'<div style="font-size:1.1rem; font-weight:700; color:#f2eee6">' + (isNaN(Number(p.price)) ? "—" : Number(p.price).toLocaleString("fr-FR") + " $") + '</div>' +
+'<div style="display:flex; gap:8px; flex-wrap:wrap">' +
+'<span class="pill' + (stock > 0 ? ' active' : '') + '">' + (stock > 0 ? "Stock " + stock : "Rupture de stock") + '</span>' +
+'<span class="pill' + (p.en_vitrine ? ' active' : '') + '">' + (p.en_vitrine ? "En vitrine" : "Pas en vitrine") + '</span>' +
+'<span class="pill' + (p.is_active ? ' active' : '') + '">' + (p.is_active ? "En ligne" : "Masqué") + '</span>' +
+'</div>' +
+(p.description ? '<div style="font-size:.85rem; color:#cfc8ba; white-space:pre-wrap">' + escapeHtml(p.description) + '</div>' : '<div style="font-size:.8rem; color:#a69d8f">Pas de description.</div>') +
+'<button id="bo-btn-goto-manage">Gérer ce produit</button>';
+
+document.getElementById("bo-btn-goto-manage").addEventListener("click", function(){ openEditProductPanel(p); });
+
+openBoPanel();
+}
+
+function openAddProductPanel(){
+document.getElementById("bo-panel-title").textContent = "Ajouter un produit";
+boPanelBody.innerHTML =
+'<div id="bo-panel-msg"></div>' +
+'<label>Nom du produit <input type="text" id="bo-p-title" placeholder="Ex. Robe wax bleue"></label>' +
+'<label>Photo du produit <input type="file" id="bo-p-image" accept="image/*"></label>' +
+'<div id="bo-img-preview" class="hidden"></div>' +
+'<label>Prix ($) <input type="number" id="bo-p-price" min="0" step="0.01" placeholder="25"></label>' +
+'<label>Quantité en stock <input type="number" id="bo-p-stock" min="0" step="1" value="1"></label>' +
+'<label>Description <textarea id="bo-p-description" placeholder="Taille, matière, couleur..."></textarea></label>' +
+'<label style="flex-direction:row; align-items:center; gap:8px">' +
+'<input type="checkbox" id="bo-p-vitrine" checked style="width:auto; padding:0">' +
+'<span>Mettre en vitrine</span>' +
+'</label>' +
+'<button id="bo-btn-add-product">Ajouter au stock</button>';
+
+var imgInput = document.getElementById("bo-p-image");
+var imgPreview = document.getElementById("bo-img-preview");
+imgInput.addEventListener("change", function(){
+var file = imgInput.files && imgInput.files[0];
+if (!file){ imgPreview.classList.add("hidden"); imgPreview.innerHTML = ""; return; }
+var url = URL.createObjectURL(file);
+imgPreview.innerHTML = '<img src="' + url + '">';
+imgPreview.classList.remove("hidden");
+});
+
+document.getElementById("bo-btn-add-product").addEventListener("click", function(){
+panelMsg("", "");
+var title = document.getElementById("bo-p-title").value.trim();
+var price = parseFloat(document.getElementById("bo-p-price").value);
+var description = document.getElementById("bo-p-description").value.trim();
+var stock = parseInt(document.getElementById("bo-p-stock").value, 10);
+var enVitrine = document.getElementById("bo-p-vitrine").checked;
+var imageFile = imgInput.files && imgInput.files[0];
+if (!title || isNaN(price)){
+panelMsg("Donne au moins un nom et un prix valides.", "error");
+return;
+}
+if (isNaN(stock) || stock < 0) stock = 0;
+var btn = document.getElementById("bo-btn-add-product");
+btn.disabled = true;
+
+(imageFile ? uploadProductImage(imageFile) : Promise.resolve(null))
+.then(function(imageUrl){
+return client.from("products").insert({
+store_id: myStore.id,
+title: title,
+price: price,
+description: description,
+is_active: true,
+stock_quantity: stock,
+en_vitrine: enVitrine,
+image_url: imageUrl
+});
+})
+.then(function(res){
+if (res.error) throw res.error;
+closeBoPanel();
+refreshBackoffice();
+})
+.catch(function(err){ panelMsg(translateError(err), "error"); })
+.finally(function(){ btn.disabled = false; });
+});
+
+openBoPanel();
+}
+
+function openEditProductPanel(p){
+var stock = (p.stock_quantity == null) ? 0 : p.stock_quantity;
+document.getElementById("bo-panel-title").textContent = p.title;
+boPanelBody.innerHTML =
+'<div id="bo-panel-msg"></div>' +
+(p.image_url ? '<div id="bo-img-preview"><img src="' + escapeHtml(p.image_url) + '"></div>' : '<div style="font-size:.78rem; color:#a69d8f">Pas encore de photo pour ce produit.</div>') +
+'<label>' + (p.image_url ? "Changer la photo" : "Ajouter une photo") + ' <input type="file" id="bo-e-image" accept="image/*"></label>' +
+'<label>Prix ($) <input type="number" id="bo-e-price" min="0" step="0.01" value="' + (isNaN(Number(p.price)) ? "" : Number(p.price)) + '"></label>' +
+'<label>Quantité en stock <input type="number" id="bo-e-stock" min="0" step="1" value="' + stock + '"></label>' +
+'<label>Description <textarea id="bo-e-description">' + escapeHtml(p.description || "") + '</textarea></label>' +
+'<button id="bo-btn-update-stock">Enregistrer (prix, stock, description)</button>' +
+'<div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:4px">' +
+'<span class="pill' + (p.is_active ? ' active' : '') + '" id="bo-toggle-active">' + (p.is_active ? "En ligne" : "Masqué") + '</span>' +
+'<span class="pill' + (p.en_vitrine ? ' active' : '') + '" id="bo-toggle-vitrine">' + (p.en_vitrine ? "Retirer de la vitrine" : "Mettre en vitrine") + '</span>' +
+'</div>' +
+'<button id="bo-btn-delete" style="background:transparent; color:#e2715c; border:1px solid #e2715c; margin-top:8px">Supprimer ce produit</button>';
+
+document.getElementById("bo-e-image").addEventListener("change", function(){
+var file = this.files && this.files[0];
+if (!file) return;
+panelMsg("Envoi de la photo...", "");
+uploadProductImage(file)
+.then(function(imageUrl){
+return client.from("products").update({ image_url: imageUrl }).eq("id", p.id);
+})
+.then(function(res2){
+if (res2.error) throw res2.error;
+panelMsg("Photo enregistrée.", "ok");
+closeBoPanel();
+refreshBackoffice();
+})
+.catch(function(err){ panelMsg(translateError(err), "error"); });
+});
+document.getElementById("bo-btn-update-stock").addEventListener("click", function(){
+var newStock = parseInt(document.getElementById("bo-e-stock").value, 10);
+if (isNaN(newStock) || newStock < 0) newStock = 0;
+var newPrice = parseFloat(document.getElementById("bo-e-price").value);
+var newDescription = document.getElementById("bo-e-description").value.trim();
+var patch = { stock_quantity: newStock, description: newDescription };
+if (!isNaN(newPrice) && newPrice >= 0) patch.price = newPrice;
+client.from("products").update(patch).eq("id", p.id)
+.then(function(res2){ if (res2.error) throw res2.error; closeBoPanel(); refreshBackoffice(); })
+.catch(function(err){ panelMsg(translateError(err), "error"); });
+});
+document.getElementById("bo-toggle-active").addEventListener("click", function(){
+client.from("products").update({ is_active: !p.is_active }).eq("id", p.id)
+.then(function(res2){ if (res2.error) throw res2.error; closeBoPanel(); refreshBackoffice(); })
+.catch(function(err){ panelMsg(translateError(err), "error"); });
+});
+document.getElementById("bo-toggle-vitrine").addEventListener("click", function(){
+client.from("products").update({ en_vitrine: !p.en_vitrine }).eq("id", p.id)
+.then(function(res2){ if (res2.error) throw res2.error; closeBoPanel(); refreshBackoffice(); })
+.catch(function(err){ panelMsg(translateError(err), "error"); });
+});
+document.getElementById("bo-btn-delete").addEventListener("click", function(){
+client.from("products").delete().eq("id", p.id)
+.then(function(res2){ if (res2.error) throw res2.error; closeBoPanel(); refreshBackoffice(); })
+.catch(function(err){ panelMsg(translateError(err), "error"); });
+});
+
+openBoPanel();
+}
+});
 })();
 </script>
