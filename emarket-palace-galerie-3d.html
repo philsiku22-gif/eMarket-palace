@@ -288,7 +288,7 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 // encodage couleur correct + un environnement réfléchissant léger.
 renderer.outputEncoding = THREE.sRGBEncoding;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.05;
+renderer.toneMappingExposure = 0.62;
 wrap.appendChild(renderer.domElement);
 
 function buildStudioEnvMap(renderer){
@@ -362,7 +362,7 @@ function repeatMarble(tex, rx, ry){
 /* sol en marbre noir veiné d'or — ambiance palace chic */
 var floorGeo = new THREE.CircleGeometry(28, 48);
 var floorTex = repeatMarble(marbleTexture("#17140f", "#d4af37", 1024), 6, 6);
-var floorMat = new THREE.MeshStandardMaterial({ map: floorTex, roughness:0.22, metalness:0.25 });
+var floorMat = new THREE.MeshStandardMaterial({ map: floorTex, roughness:0.35, metalness:0.12 });
 var floor = new THREE.Mesh(floorGeo, floorMat);
 floor.rotation.x = -Math.PI/2;
 floor.receiveShadow = true;

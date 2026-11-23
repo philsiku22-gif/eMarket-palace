@@ -675,7 +675,7 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
       // encodage couleur correct + un environnement réfléchissant léger.
       renderer.outputEncoding = THREE.sRGBEncoding;
       renderer.toneMapping = THREE.ACESFilmicToneMapping;
-      renderer.toneMappingExposure = 1.05;
+      renderer.toneMappingExposure = 0.65;
       wrap.appendChild(renderer.domElement);
       scene.environment = buildStudioEnvMap(renderer);
 
@@ -709,7 +709,7 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
       // sol (béton, texture procédurale)
       var floor = new THREE.Mesh(
         new THREE.PlaneGeometry(ROOM_W, ROOM_D),
-        new THREE.MeshStandardMaterial({ map: concreteTexture(), roughness:0.32, metalness:0.08 })
+        new THREE.MeshStandardMaterial({ map: concreteTexture(), roughness:0.42, metalness:0.04 })
       );
       floor.rotation.x = -Math.PI/2;
       floor.receiveShadow = true;
