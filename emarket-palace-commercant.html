@@ -205,10 +205,6 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
     </div>
 
     <div id="panel-products">
-      <div style="border-radius:14px; overflow:hidden; margin-bottom:10px; position:relative;">
-        <img src="backoffice-reference.jpg" alt="Référence réelle de l'arrière-boutique eMarket-Palace" style="display:block; width:100%; max-height:260px; object-fit:cover;" />
-        <div style="position:absolute; left:10px; bottom:10px; background:rgba(20,22,24,.72); color:#f2eee6; font-size:12px; padding:4px 10px; border-radius:999px;">Référence réelle</div>
-      </div>
       <div class="sub" id="bo-hint">
         Déplace-toi dans ton arrière-boutique (flèches / ZQSD ou WASD, glisser pour regarder autour) &middot;
         clique sur une étagère pour gérer ce produit, ou sur le comptoir vert pour ajouter du stock.
@@ -630,6 +626,7 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
     var shelfGroup, clickable = [];
     var move = { fwd:false, back:false, left:false, right:false };
     var downPos = null;
+    var refPhotoTex = null;
     var currentProducts = [];
     var panelMode = null; // "add" | "edit"
     var panelProduct = null;
@@ -758,6 +755,25 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
         });
       });
 
+      // photo réelle importée (référence), encadrée au mur et légèrement animée
+      // (effet Ken Burns : léger zoom/pan en boucle) pour donner vie à l'espace.
+      var frameMat = new THREE.MeshStandardMaterial({ color:0x2a2420, roughness:0.6, metalness:0.1 });
+      var refFrame = new THREE.Mesh(new THREE.BoxGeometry(1.75, 1.3, 0.06), frameMat);
+      refFrame.position.set(-3.2, 1.8, ROOM_BACK_Z + 0.03);
+      scene.add(refFrame);
+      refPhotoTex = new THREE.TextureLoader().load("backoffice-reference.jpg");
+      var refPhotoMat = new THREE.MeshBasicMaterial({ map: refPhotoTex });
+      var refPhotoPlane = new THREE.Mesh(new THREE.PlaneGeometry(1.58, 1.14), refPhotoMat);
+      refPhotoPlane.position.set(-3.2, 1.8, ROOM_BACK_Z + 0.065);
+      scene.add(refPhotoPlane);
+      var refLabelTex = textTexture("Référence réelle", "", "#2a2420", "#f2eee6");
+      var refLabel = new THREE.Mesh(
+        new THREE.PlaneGeometry(1.1, 0.22),
+        new THREE.MeshBasicMaterial({ map: refLabelTex, transparent:true })
+      );
+      refLabel.position.set(-3.2, 1.08, ROOM_BACK_Z + 0.07);
+      scene.add(refLabel);
+
       shelfGroup = new THREE.Group();
       scene.add(shelfGroup);
 
@@ -830,6 +846,13 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
         requestAnimationFrame(animate);
         updateMovement();
         controls.update();
+        if (refPhotoTex){
+          var t = clock.getElapsedTime() * 0.12;
+          var zoom = 1.08 + 0.05 * Math.sin(t);
+          var inv = 1 / zoom;
+          refPhotoTex.repeat.set(inv, inv);
+          refPhotoTex.offset.set((1 - inv) * (0.5 + 0.35 * Math.sin(t * 0.6)), (1 - inv) * (0.5 + 0.25 * Math.cos(t * 0.4)));
+        }
         renderer.render(scene, camera);
       }
       animate();
