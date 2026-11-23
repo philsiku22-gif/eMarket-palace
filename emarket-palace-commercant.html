@@ -626,7 +626,6 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
     var shelfGroup, clickable = [];
     var move = { fwd:false, back:false, left:false, right:false };
     var downPos = null;
-    var refPhotoTex = null;
     var currentProducts = [];
     var panelMode = null; // "add" | "edit"
     var panelProduct = null;
@@ -680,49 +679,24 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
       var ROOM_BACK_Z = -ROOM_D/2, ROOM_FRONT_Z = ROOM_D/2;
       var ROOM_LEFT_X = -ROOM_W/2, ROOM_RIGHT_X = ROOM_W/2;
 
-      // sol (béton, texture procédurale)
+      // sol (béton poli clair, texture procédurale) — comme la réserve réelle
       var floor = new THREE.Mesh(
         new THREE.PlaneGeometry(ROOM_W, ROOM_D),
-        new THREE.MeshStandardMaterial({ map: concreteTexture(), roughness:0.42, metalness:0.04 })
+        new THREE.MeshStandardMaterial({ map: concreteTexture(), roughness:0.38, metalness:0.03, color:0xe9e6e0 })
       );
       floor.rotation.x = -Math.PI/2;
       floor.receiveShadow = true;
       scene.add(floor);
 
-      // bande de sécurité jaune/noire au sol, près de l'entrée
-      var stripeCanvas = document.createElement("canvas");
-      stripeCanvas.width = 64; stripeCanvas.height = 16;
-      var sctx = stripeCanvas.getContext("2d");
-      sctx.fillStyle = "#1f2c33"; sctx.fillRect(0,0,64,16);
-      sctx.fillStyle = "#3fae84";
-      sctx.fillRect(0, 6, 64, 4);
-      sctx.fillStyle = "#e7ebec";
-      sctx.fillRect(0, 2, 64, 1.5);
-      sctx.fillRect(0, 12.5, 64, 1.5);
-      var stripeTex = repeatTex(stripeCanvas, 3, 1);
-      var safetyStripe = new THREE.Mesh(
-        new THREE.PlaneGeometry(ROOM_W - 1, 0.35),
-        new THREE.MeshBasicMaterial({ map: stripeTex })
-      );
-      safetyStripe.rotation.x = -Math.PI/2;
-      safetyStripe.position.set(0, 0.01, ROOM_FRONT_Z - 0.6);
-      scene.add(safetyStripe);
-
       var wallTex = wallTexture();
-      var wallMat = new THREE.MeshStandardMaterial({ map: wallTex, roughness:0.9 });
+      var wallMat = new THREE.MeshStandardMaterial({ map: wallTex, roughness:0.92, color:0xf2f0ea });
 
-      // mur du fond : la photo réelle devient directement le décor du mur
-      // (un seul paysage cohérent, pas une photo encadrée dans la pièce),
-      // avec un léger zoom/pan animé en boucle (effet Ken Burns).
-      refPhotoTex = new THREE.TextureLoader().load("backoffice-reference.jpg");
-      refPhotoTex.wrapS = THREE.ClampToEdgeWrapping;
-      refPhotoTex.wrapT = THREE.ClampToEdgeWrapping;
-      var backWallMat = new THREE.MeshStandardMaterial({ map: refPhotoTex, roughness:0.85 });
-      var backWall = new THREE.Mesh(new THREE.PlaneGeometry(ROOM_W, ROOM_H), backWallMat);
+      // murs : blanc/gris clair uni, sans aucune décoration rapportée —
+      // c'est la géométrie et le mobilier qui recréent la vraie pièce, pas une photo collée.
+      var backWall = new THREE.Mesh(new THREE.PlaneGeometry(ROOM_W, ROOM_H), wallMat);
       backWall.position.set(0, ROOM_H/2, ROOM_BACK_Z);
       scene.add(backWall);
 
-      // murs latéraux
       [ROOM_LEFT_X, ROOM_RIGHT_X].forEach(function(x){
         var sw = new THREE.Mesh(new THREE.PlaneGeometry(ROOM_D, ROOM_H), wallMat);
         sw.position.set(x, ROOM_H/2, 0);
@@ -730,35 +704,61 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
         scene.add(sw);
       });
 
-      // plafond clair + rampes lumineuses suspendues, bien éclairées
+      // porte vitrée à cadre doré, comme la séparation réelle avec la boutique
+      (function(){
+        var doorGroup = new THREE.Group();
+        doorGroup.position.set(ROOM_LEFT_X + 0.03, 0, -1.2);
+        doorGroup.rotation.y = Math.PI * 0.08;
+        var goldMat = new THREE.MeshStandardMaterial({ color:0xc8a04a, roughness:0.35, metalness:0.75 });
+        var glassMat = new THREE.MeshStandardMaterial({ color:0xdfe6e6, transparent:true, opacity:0.22, roughness:0.1, metalness:0.1 });
+        var doorW = 1.1, doorH = 2.5;
+        [[-doorW/2,0],[doorW/2,0]].forEach(function(p){
+          var post = new THREE.Mesh(new THREE.BoxGeometry(0.05, doorH, 0.05), goldMat);
+          post.position.set(p[0], doorH/2, p[1]);
+          doorGroup.add(post);
+        });
+        [0, doorH].forEach(function(y){
+          var rail = new THREE.Mesh(new THREE.BoxGeometry(doorW, 0.05, 0.05), goldMat);
+          rail.position.set(0, y === 0 ? 0.02 : doorH, 0);
+          doorGroup.add(rail);
+        });
+        var midRail = new THREE.Mesh(new THREE.BoxGeometry(doorW, 0.04, 0.04), goldMat);
+        midRail.position.set(0, doorH * 0.55, 0);
+        doorGroup.add(midRail);
+        var glass = new THREE.Mesh(new THREE.PlaneGeometry(doorW - 0.08, doorH - 0.1), glassMat);
+        glass.position.set(0, doorH/2, 0.01);
+        doorGroup.add(glass);
+        scene.add(doorGroup);
+      })();
+
+      // plafond clair + bandeau LED continu encastré le long du pourtour,
+      // comme l'éclairage linéaire de la vraie pièce (pas des dalles carrées).
       var ceiling = new THREE.Mesh(
         new THREE.PlaneGeometry(ROOM_W, ROOM_D),
-        new THREE.MeshStandardMaterial({ color:0xf4f6f7, roughness:1 })
+        new THREE.MeshStandardMaterial({ color:0xf6f7f8, roughness:1 })
       );
       ceiling.rotation.x = Math.PI/2;
       ceiling.position.y = ROOM_H;
       scene.add(ceiling);
 
-      // dalles lumineuses LED modernes, alignées en grille — éclairage
-      // professionnel propre plutôt que de simples néons d'entrepôt.
-      [-2.4, 0, 2.4].forEach(function(x){
-        [-2, 1].forEach(function(z){
-          var fixture = new THREE.Mesh(
-            new THREE.BoxGeometry(1.1, 0.06, 1.1),
-            new THREE.MeshStandardMaterial({ color:0xffffff, emissive:0xf3f8ff, emissiveIntensity:0.5 })
-          );
-          fixture.position.set(x, ROOM_H - 0.06, z);
-          scene.add(fixture);
-          var frame = new THREE.Mesh(
-            new THREE.BoxGeometry(1.22, 0.03, 1.22),
-            new THREE.MeshStandardMaterial({ color:0xc7cdd0, roughness:0.4, metalness:0.3 })
-          );
-          frame.position.set(x, ROOM_H - 0.02, z);
-          scene.add(frame);
-          var lamp = new THREE.PointLight(0xf3f8ff, 0.38, 9, 2);
-          lamp.position.set(x, ROOM_H - 0.3, z);
-          scene.add(lamp);
-        });
+      var ledInset = 0.9;
+      var stripMat = new THREE.MeshStandardMaterial({ color:0xffffff, emissive:0xfff8ea, emissiveIntensity:0.9 });
+      var ledY = ROOM_H - 0.04;
+      var stripN = new THREE.Mesh(new THREE.BoxGeometry(ROOM_W - ledInset*2, 0.03, 0.08), stripMat);
+      stripN.position.set(0, ledY, ROOM_BACK_Z + ledInset);
+      scene.add(stripN);
+      var stripS = stripN.clone();
+      stripS.position.set(0, ledY, ROOM_FRONT_Z - ledInset);
+      scene.add(stripS);
+      [ROOM_LEFT_X, ROOM_RIGHT_X].forEach(function(x){
+        var stripSide = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.03, ROOM_D - ledInset*2), stripMat);
+        stripSide.position.set(x < 0 ? x + ledInset : x - ledInset, ledY, 0);
+        scene.add(stripSide);
+      });
+      [[-2.4,-1.5],[1.2,-1.5],[-2.4,1.5],[1.2,1.5]].forEach(function(p){
+        var lamp = new THREE.PointLight(0xfff8ea, 0.32, 9, 2);
+        lamp.position.set(p[0], ROOM_H - 0.25, p[1]);
+        scene.add(lamp);
       });
 
       shelfGroup = new THREE.Group();
@@ -833,13 +833,6 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
         requestAnimationFrame(animate);
         updateMovement();
         controls.update();
-        if (refPhotoTex){
-          var t = clock.getElapsedTime() * 0.12;
-          var zoom = 1.08 + 0.05 * Math.sin(t);
-          var inv = 1 / zoom;
-          refPhotoTex.repeat.set(inv, inv);
-          refPhotoTex.offset.set((1 - inv) * (0.5 + 0.35 * Math.sin(t * 0.6)), (1 - inv) * (0.5 + 0.25 * Math.cos(t * 0.4)));
-        }
         renderer.render(scene, camera);
       }
       animate();
@@ -1036,29 +1029,53 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
     function buildOfficeCorner(){
       var woodTex = woodTexture();
       var metalTex = metalTexture();
+      var blackMetalTex = blackMetalTexture();
       var office = new THREE.Group();
       office.position.set(3.0, 0, -2.9);
       office.rotation.y = Math.PI * 0.82;
 
-      // plateau du bureau
+      // bureau à deux niveaux, cadre métal noir (comme la vraie table d'atelier) —
+      // plateau haut en bois clair, étagère basse en métal noir avec des cartons.
+      var frameMat = new THREE.MeshStandardMaterial({ map: blackMetalTex, roughness:0.5, metalness:0.5 });
+
       var deskTop = new THREE.Mesh(
-        new THREE.BoxGeometry(1.5, 0.07, 0.75),
+        new THREE.BoxGeometry(1.5, 0.06, 0.75),
         new THREE.MeshStandardMaterial({ map: woodTex, roughness:0.6 })
       );
-      deskTop.position.y = 0.75;
+      deskTop.position.y = 0.78;
       deskTop.castShadow = true;
       deskTop.receiveShadow = true;
       office.add(deskTop);
 
-      // pieds métalliques
+      var lowerShelf = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.05, 0.75), frameMat);
+      lowerShelf.position.y = 0.32;
+      lowerShelf.receiveShadow = true;
+      office.add(lowerShelf);
+
+      // pieds et montants en métal noir
       [[-0.68,-0.3],[0.68,-0.3],[-0.68,0.3],[0.68,0.3]].forEach(function(pos){
-        var leg = new THREE.Mesh(
-          new THREE.BoxGeometry(0.05, 0.75, 0.05),
-          new THREE.MeshStandardMaterial({ map: metalTex, roughness:0.5, metalness:0.4 })
-        );
-        leg.position.set(pos[0], 0.375, pos[1]);
+        var leg = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.78, 0.05), frameMat);
+        leg.position.set(pos[0], 0.39, pos[1]);
         leg.castShadow = true;
         office.add(leg);
+      });
+
+      // cartons kraft étiquetés "eMarket-Palace HQ" sur l'étagère basse
+      [[-0.42,-0.15],[0.0,-0.15]].forEach(function(pos){
+        var hqBox = new THREE.Mesh(
+          new THREE.BoxGeometry(0.42, 0.3, 0.32),
+          new THREE.MeshStandardMaterial({ map: cardboardTexture(), roughness:0.9 })
+        );
+        hqBox.position.set(pos[0], 0.5, pos[1]);
+        hqBox.castShadow = true;
+        office.add(hqBox);
+        var hqTex = textTexture("eMarket-Palace", "HQ", "#00000000", "#5a4a32");
+        var hqLabel = new THREE.Mesh(
+          new THREE.PlaneGeometry(0.4, 0.17),
+          new THREE.MeshBasicMaterial({ map: hqTex, transparent:true })
+        );
+        hqLabel.position.set(pos[0], 0.5, pos[1] + 0.17);
+        office.add(hqLabel);
       });
 
       // écran d'ordinateur
@@ -1082,7 +1099,7 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
       );
       stand.position.y = 0.05;
       monitor.add(stand);
-      monitor.position.set(0, 0.785, -0.15);
+      monitor.position.set(0, 0.81, -0.15);
       office.add(monitor);
 
       // clavier
@@ -1090,7 +1107,7 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
         new THREE.BoxGeometry(0.4, 0.02, 0.16),
         new THREE.MeshStandardMaterial({ color:0x2a2822 })
       );
-      keyboard.position.set(0, 0.8, 0.18);
+      keyboard.position.set(0, 0.825, 0.18);
       office.add(keyboard);
 
       // petite lampe de bureau
@@ -1098,7 +1115,7 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
         new THREE.CylinderGeometry(0.05, 0.06, 0.03, 10),
         new THREE.MeshStandardMaterial({ map: metalTex, metalness:0.5 })
       );
-      lampBase.position.set(0.55, 0.785, -0.2);
+      lampBase.position.set(0.55, 0.81, -0.2);
       office.add(lampBase);
       var lampHead = new THREE.Mesh(
         new THREE.SphereGeometry(0.05, 10, 10),
@@ -1142,6 +1159,53 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
       var metalTex = metalTexture();
       var woodTex = woodTexture();
       var blackMetalTex = blackMetalTexture();
+
+      // portant à vêtements + échelle roulante, décor fixe de la réserve
+      // (comme sur la vraie photo), indépendant des produits en stock.
+      (function(){
+        var railMat = new THREE.MeshStandardMaterial({ map: blackMetalTex, roughness:0.5, metalness:0.55 });
+        var railGroup = new THREE.Group();
+        railGroup.position.set(2.0, 0, -2.0);
+        var railH = 1.55, railLen = 1.5;
+        [[-railLen/2,0],[railLen/2,0]].forEach(function(p){
+          var post = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, railH, 8), railMat);
+          post.position.set(p[0], railH/2, p[1]);
+          railGroup.add(post);
+        });
+        var bar = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, railLen, 8), railMat);
+        bar.rotation.z = Math.PI/2;
+        bar.position.set(0, railH, 0);
+        railGroup.add(bar);
+        var shirtColors = [0xd8d2c4, 0x8a93a0, 0x3d4652, 0xc9b79c, 0x6b7a6e];
+        for (var i = 0; i < 5; i++){
+          var shirt = new THREE.Mesh(
+            new THREE.BoxGeometry(0.2, 0.42, 0.05),
+            new THREE.MeshStandardMaterial({ color: shirtColors[i], roughness:0.85 })
+          );
+          shirt.position.set(-railLen/2 + 0.15 + i * 0.3, railH - 0.28, 0);
+          shirt.castShadow = true;
+          railGroup.add(shirt);
+        }
+        shelfGroup.add(railGroup);
+
+        // échelle roulante inclinée contre l'étagère
+        var ladder = new THREE.Group();
+        ladder.position.set(0.75, 0, -2.65);
+        ladder.rotation.y = Math.PI * 0.08;
+        ladder.rotation.x = -0.12;
+        var sideMat = new THREE.MeshStandardMaterial({ map: blackMetalTex, roughness:0.5, metalness:0.5 });
+        [[-0.18,0],[0.18,0]].forEach(function(p){
+          var side = new THREE.Mesh(new THREE.BoxGeometry(0.03, 2.0, 0.03), sideMat);
+          side.position.set(p[0], 1.0, p[1]);
+          ladder.add(side);
+        });
+        for (var r = 0; r < 6; r++){
+          var rung = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.02, 0.03), sideMat);
+          rung.position.set(0, 0.2 + r * 0.32, 0);
+          ladder.add(rung);
+        }
+        shelfGroup.add(ladder);
+      })();
 
       // comptoir "+ Nouveau produit", toujours présent, à gauche de la scène
       var counter = new THREE.Group();
