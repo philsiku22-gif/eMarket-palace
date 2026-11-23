@@ -273,8 +273,8 @@ var currentUser = null;
 /* ================== scène three.js ================== */
 var wrap = document.getElementById("canvas-wrap");
 var scene = new THREE.Scene();
-scene.background = new THREE.Color(0x15130f);
-scene.fog = new THREE.Fog(0x15130f, 18, 46);
+scene.background = new THREE.Color(0xf4ede0);
+scene.fog = new THREE.Fog(0xf4ede0, 24, 54);
 
 var camera = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.1, 200);
 camera.position.set(0, 2.2, 14);
@@ -297,13 +297,16 @@ controls.minPolarAngle = Math.PI * 0.25;
 controls.enablePan = false;
 controls.update();
 
-/* lumières */
-scene.add(new THREE.HemisphereLight(0xfff3df, 0x1a1712, 0.7));
-var sun = new THREE.DirectionalLight(0xffe9c7, 0.9);
-sun.position.set(10, 18, 8);
+/* lumières — grand atrium lumineux sous verrière, pas une ambiance de nuit */
+scene.add(new THREE.HemisphereLight(0xffffff, 0xcfc3ac, 0.95));
+var sun = new THREE.DirectionalLight(0xfff6e8, 1.05);
+sun.position.set(10, 22, 8);
 sun.castShadow = true;
 sun.shadow.mapSize.set(1024,1024);
 scene.add(sun);
+var fillSky = new THREE.DirectionalLight(0xffffff, 0.4);
+fillSky.position.set(-12, 16, -6);
+scene.add(fillSky);
 
 /* textures procédurales marbre/or (ambiance palace chic, aucune image externe) */
 function marbleTexture(base, vein, size){
@@ -337,28 +340,22 @@ function repeatMarble(tex, rx, ry){
 
 /* sol en marbre noir veiné d'or — ambiance palace chic */
 var floorGeo = new THREE.CircleGeometry(28, 48);
-var floorTex = repeatMarble(marbleTexture("#17140f", "#d4af37", 1024), 6, 6);
-var floorMat = new THREE.MeshStandardMaterial({ map: floorTex, roughness:0.35, metalness:0.12 });
+var floorTex = repeatMarble(marbleTexture("#e8dcc4", "#c9ad7e", 1024), 6, 6);
+var floorMat = new THREE.MeshStandardMaterial({ map: floorTex, roughness:0.32, metalness:0.06 });
 var floor = new THREE.Mesh(floorGeo, floorMat);
 floor.rotation.x = -Math.PI/2;
 floor.receiveShadow = true;
 scene.add(floor);
 
-/* tapis rouge menant à l'anneau central, liseré or */
-var carpetGeo = new THREE.PlaneGeometry(2.3, 11);
-var carpetMat = new THREE.MeshStandardMaterial({ color:0x7a1626, roughness:0.85 });
-var carpet = new THREE.Mesh(carpetGeo, carpetMat);
-carpet.rotation.x = -Math.PI/2;
-carpet.position.set(0, 0.015, 9.5);
-carpet.receiveShadow = true;
-scene.add(carpet);
+/* allée centrale discrète, liseré or incrusté dans le marbre (pas un tapis
+   rouge de gala — une incrustation sobre, comme dans une vraie galerie chic) */
 [-1.18, 1.18].forEach(function(cx){
   var trim = new THREE.Mesh(
-    new THREE.PlaneGeometry(0.1, 11),
-    new THREE.MeshStandardMaterial({ color:0xd4af37, emissive:0xd4af37, emissiveIntensity:0.12, roughness:0.3, metalness:0.6 })
+    new THREE.PlaneGeometry(0.08, 11),
+    new THREE.MeshStandardMaterial({ color:0xd4af37, emissive:0xd4af37, emissiveIntensity:0.1, roughness:0.3, metalness:0.6 })
   );
   trim.rotation.x = -Math.PI/2;
-  trim.position.set(cx, 0.017, 9.5);
+  trim.position.set(cx, 0.016, 9.5);
   scene.add(trim);
 });
 
@@ -470,11 +467,11 @@ function buildBooths(list){
     group.position.set(x, 0, z);
     group.lookAt(0, 0, 0);
 
-    var hue = (i * 47) % 360;
-    var color = new THREE.Color("hsl(" + hue + ", 46%, 38%)");
-
+    // façade crème/travertin uniforme façon boutique de palace — la couleur
+    // ne sert plus à distinguer les catégories (l'enseigne s'en charge),
+    // une rangée de boutiques toutes différentes en teinte ne fait pas chic.
     var standGeo = new THREE.BoxGeometry(2.6, 2.4, 1.1);
-    var standMat = new THREE.MeshStandardMaterial({ color: color, roughness:0.45, metalness:0.12 });
+    var standMat = new THREE.MeshStandardMaterial({ color:0xede3d1, roughness:0.55, metalness:0.04 });
     var stand = new THREE.Mesh(standGeo, standMat);
     stand.position.y = 1.2;
     stand.castShadow = true;
@@ -482,7 +479,7 @@ function buildBooths(list){
     group.add(stand);
 
     var roofGeo = new THREE.BoxGeometry(2.9, 0.18, 1.3);
-    var roofMat = new THREE.MeshStandardMaterial({ color:0x3fae84, roughness:0.35, metalness:0.25 });
+    var roofMat = new THREE.MeshStandardMaterial({ color:0xf7f1e4, roughness:0.4, metalness:0.08 });
     var roof = new THREE.Mesh(roofGeo, roofMat);
     roof.position.y = 2.5;
     roof.castShadow = true;
