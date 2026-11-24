@@ -652,6 +652,11 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
       renderer.setSize(w, h);
       renderer.shadowMap.enabled = true;
       renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+      // rendu "haut de gamme" : tone mapping cinématographique + sortie sRGB,
+      // au lieu du rendu plat par défaut de Three.js.
+      if (THREE.ACESFilmicToneMapping) renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      renderer.toneMappingExposure = 1.12;
+      if (THREE.sRGBEncoding) renderer.outputEncoding = THREE.sRGBEncoding;
       wrap.appendChild(renderer.domElement);
 
       controls = new THREE.OrbitControls(camera, renderer.domElement);
@@ -687,7 +692,7 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
       // sol : dalle béton ciré gris clair, légers reflets diffus
       var floor = new THREE.Mesh(
         new THREE.PlaneGeometry(ROOM_W, ROOM_D),
-        new THREE.MeshStandardMaterial({ map: concreteTexture(), roughness:0.32, metalness:0.08, color:0xd9dadb })
+        new THREE.MeshStandardMaterial({ map: concreteTexture(), roughness:0.2, metalness:0.1, color:0xd9dadb, envMapIntensity:0.6 })
       );
       floor.rotation.x = -Math.PI/2;
       floor.receiveShadow = true;
@@ -869,6 +874,26 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
             group.add(box);
             cursor += bw + 0.04 + pseudoRand() * 0.1;
           }
+        });
+
+        // liseré lumineux vert de marque sous le premier plateau, sur toute la
+        // largeur — touche premium qui signe l'étagère comme un vrai meuble
+        // de merchandising plutôt qu'un simple rayonnage d'entrepôt.
+        var brandStrip = new THREE.Mesh(
+          new THREE.BoxGeometry(runW - 0.1, 0.012, 0.012),
+          new THREE.MeshStandardMaterial({ color:0x3fae84, emissive:0x3fae84, emissiveIntensity:0.9, roughness:0.3, metalness:0.2 })
+        );
+        brandStrip.position.set(0, cabH - 0.01, -0.01);
+        group.add(brandStrip);
+
+        // spots d'accent chauds dirigés vers l'étagère, comme un éclairage de
+        // mise en valeur de vitrine haut de gamme (sans ombre, pour rester léger).
+        [-runW/3, 0, runW/3].forEach(function(sx){
+          var spot = new THREE.SpotLight(0xfff0d8, 0.55, 4.5, Math.PI/5, 0.6, 1.2);
+          spot.position.set(sx, runH + 0.5, 0.9);
+          spot.target.position.set(sx, 1.1, -0.2);
+          group.add(spot);
+          group.add(spot.target);
         });
 
         scene.add(group);
