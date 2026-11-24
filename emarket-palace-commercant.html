@@ -652,11 +652,6 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
       renderer.setSize(w, h);
       renderer.shadowMap.enabled = true;
       renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-      // rendu "haut de gamme" : tone mapping cinématographique + sortie sRGB,
-      // au lieu du rendu plat par défaut de Three.js.
-      if (THREE.ACESFilmicToneMapping) renderer.toneMapping = THREE.ACESFilmicToneMapping;
-      renderer.toneMappingExposure = 1.12;
-      if (THREE.sRGBEncoding) renderer.outputEncoding = THREE.sRGBEncoding;
       wrap.appendChild(renderer.domElement);
 
       controls = new THREE.OrbitControls(camera, renderer.domElement);
