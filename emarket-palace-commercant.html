@@ -1543,8 +1543,9 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
       palletSlots = PALLET_SLOT_DEFS.map(function(def, idx){
         var pal = buildPallet(def.x, def.z);
         var numTex = textTexture("N° " + (idx + 1), "Palette", "#0d4d33", "#ffffff");
-        var numTag = new THREE.Mesh(new THREE.PlaneGeometry(0.46, 0.46), new THREE.MeshBasicMaterial({ map: numTex, transparent:true }));
+        var numTag = new THREE.Mesh(new THREE.PlaneGeometry(0.46, 0.46), new THREE.MeshBasicMaterial({ map: numTex, transparent:true, side: THREE.DoubleSide, depthTest:false }));
         numTag.position.set(-0.4, pal.topY + 0.3, 0.5);
+        numTag.renderOrder = 10;
         pal.group.add(numTag);
         return { key: def.key, index: idx, title: def.title, group: pal.group, topY: pal.topY };
       });
@@ -1738,8 +1739,9 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
           group.add(plank);
         });
         var numTex = textTexture("N° " + (def.index + 1), "Rayon", "#0d4d33", "#ffffff");
-        var numTag = new THREE.Mesh(new THREE.PlaneGeometry(0.46, 0.46), new THREE.MeshBasicMaterial({ map: numTex, transparent:true }));
+        var numTag = new THREE.Mesh(new THREE.PlaneGeometry(0.46, 0.46), new THREE.MeshBasicMaterial({ map: numTex, transparent:true, side: THREE.DoubleSide, depthTest:false }));
         numTag.position.set(-rackW/2 + 0.3, 0.3, rackD/2 + 0.045);
+        numTag.renderOrder = 10;
         group.add(numTag);
 
         scene.add(group);
