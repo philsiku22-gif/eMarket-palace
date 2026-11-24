@@ -202,6 +202,7 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
     <div class="tabs">
       <div class="tab active" id="tab-products">Arrière-boutique</div>
       <div class="tab" id="tab-orders">Commandes</div>
+      <div class="tab" id="tab-stock">Fiche de stock</div>
     </div>
 
     <div id="panel-products">
@@ -233,6 +234,19 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
 
     <div id="panel-orders" class="hidden">
       <div class="card" id="orders-list"><div class="loading">Chargement...</div></div>
+    </div>
+
+    <div id="panel-stock" class="hidden">
+      <div class="card">
+        <h3 style="margin:0 0 2px; font-size:1rem">Produits &amp; disponibilité</h3>
+        <div class="sub" style="margin-top:-6px">Stock actuel et statut en ligne / en vitrine de chaque produit.</div>
+        <div id="stock-summary"><div class="loading">Chargement...</div></div>
+      </div>
+      <div class="card">
+        <h3 style="margin:0 0 2px; font-size:1rem">Historique des mouvements</h3>
+        <div class="sub" style="margin-top:-6px">Toutes les créations, révisions de stock, mises en/hors ligne et suppressions.</div>
+        <div id="stock-history"><div class="loading">Chargement...</div></div>
+      </div>
     </div>
   </div>
 
@@ -376,9 +390,22 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
           );
           return;
         }
-        client.from("products").update({ stock_quantity: pending.newStock }).eq("id", pending.productId)
+        client.from("products").update({ stock_quantity: pending.newStock }).eq("id", pending.productId).select().single()
           .then(function(res2){
             if (res2.error) throw res2.error;
+            var updated = res2.data;
+            // journalise ce mouvement dans la fiche de stock (ne bloque jamais
+            // la confirmation elle-même en cas d'échec de l'écriture).
+            client.from("stock_movements").insert({
+              store_id: updated.store_id,
+              product_id: updated.id,
+              product_title: pending.productTitle,
+              movement_type: "stock_update",
+              quantity_before: (pending.oldStock == null ? null : pending.oldStock),
+              quantity_after: pending.newStock,
+              en_vitrine_after: updated.en_vitrine,
+              is_active_after: updated.is_active
+            }).catch(function(e){ console.warn("Fiche de stock : mouvement non enregistré (stock_update) :", e); });
             // la procédure est réinitialisée ici : la demande en attente est
             // effacée dès l'enregistrement, avant même que le marchand clique
             // sur "Clôturer" — ce bouton sert seulement à continuer ensuite.
@@ -554,19 +581,25 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
     });
 
     // ---- TABS ----
+    function setActiveTab(tabId){
+      ["tab-products", "tab-orders", "tab-stock"].forEach(function(id){
+        document.getElementById(id).classList.toggle("active", id === tabId);
+      });
+      document.getElementById("panel-products").classList.toggle("hidden", tabId !== "tab-products");
+      document.getElementById("panel-orders").classList.toggle("hidden", tabId !== "tab-orders");
+      document.getElementById("panel-stock").classList.toggle("hidden", tabId !== "tab-stock");
+    }
     document.getElementById("tab-products").addEventListener("click", function(){
-      document.getElementById("tab-products").classList.add("active");
-      document.getElementById("tab-orders").classList.remove("active");
-      document.getElementById("panel-products").classList.remove("hidden");
-      document.getElementById("panel-orders").classList.add("hidden");
+      setActiveTab("tab-products");
       onBackofficeShown();
     });
     document.getElementById("tab-orders").addEventListener("click", function(){
-      document.getElementById("tab-orders").classList.add("active");
-      document.getElementById("tab-products").classList.remove("active");
-      document.getElementById("panel-orders").classList.remove("hidden");
-      document.getElementById("panel-products").classList.add("hidden");
+      setActiveTab("tab-orders");
       loadOrders();
+    });
+    document.getElementById("tab-stock").addEventListener("click", function(){
+      setActiveTab("tab-stock");
+      loadStockSheet();
     });
 
     function uploadProductImage(file){
@@ -619,6 +652,104 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
       return { paid: "Payée", preparing: "En préparation", shipped: "Expédiée", delivered: "Livrée", cancelled: "Annulée" }[s] || s;
     }
 
+    // ================== FICHE DE STOCK (journal de tous les mouvements) ==================
+    // Chaque action qui touche le stock, la mise en ligne ou la vitrine
+    // d'un produit (création, révision de stock confirmée, suppression,
+    // bascule en ligne/masqué, bascule vitrine) écrit une ligne ici.
+    // L'échec de cet enregistrement ne doit jamais bloquer l'action principale.
+    var MOVEMENT_LABELS = {
+      creation: "Création produit",
+      stock_update: "Révision de stock",
+      vitrine_on: "Mise en vitrine",
+      vitrine_off: "Retrait de la vitrine",
+      mise_en_ligne: "Mise en ligne",
+      masquage: "Masqué",
+      suppression: "Suppression produit"
+    };
+
+    function logStockMovement(p, type, qtyBefore, qtyAfter){
+      if (!client || !myStore || !p) return Promise.resolve();
+      return client.from("stock_movements").insert({
+        store_id: myStore.id,
+        product_id: p.id || null,
+        product_title: p.title || "(produit)",
+        movement_type: type,
+        quantity_before: (qtyBefore == null ? null : qtyBefore),
+        quantity_after: (qtyAfter == null ? null : qtyAfter),
+        en_vitrine_after: (p.en_vitrine == null ? null : p.en_vitrine),
+        is_active_after: (p.is_active == null ? null : p.is_active)
+      }).catch(function(err){
+        console.warn("Fiche de stock : mouvement non enregistré (" + type + ") :", err);
+      });
+    }
+
+    function loadStockSheet(){
+      var summary = document.getElementById("stock-summary");
+      var history = document.getElementById("stock-history");
+      summary.innerHTML = '<div class="loading">Chargement...</div>';
+      history.innerHTML = '<div class="loading">Chargement...</div>';
+
+      client.from("products").select("*").eq("store_id", myStore.id).order("created_at", { ascending: true })
+        .then(function(res){
+          if (res.error) throw res.error;
+          var products = res.data || [];
+          if (products.length === 0){
+            summary.innerHTML = '<div class="empty">Aucun produit pour l\'instant.</div>';
+            return;
+          }
+          summary.innerHTML = "";
+          products.forEach(function(p){
+            var stock = (p.stock_quantity == null) ? 0 : p.stock_quantity;
+            var row = document.createElement("div");
+            row.className = "item-row";
+            row.innerHTML =
+              '<div class="item-info">' +
+                '<div class="name">' + escapeHtml(p.title) + '</div>' +
+                '<div class="meta">Stock : ' + stock + (stock <= 0 ? " (rupture)" : "") + '</div>' +
+              '</div>' +
+              '<div class="actions">' +
+                '<span class="pill' + (p.is_active ? ' active' : '') + '">' + (p.is_active ? "En ligne" : "Masqué") + '</span>' +
+                '<span class="pill' + (p.en_vitrine ? ' active' : '') + '">' + (p.en_vitrine ? "En vitrine" : "Pas en vitrine") + '</span>' +
+              '</div>';
+            summary.appendChild(row);
+          });
+        })
+        .catch(function(err){ summary.innerHTML = '<div class="empty">Erreur : ' + escapeHtml(translateError(err)) + '</div>'; });
+
+      client.from("stock_movements").select("*").eq("store_id", myStore.id).order("created_at", { ascending: false }).limit(50)
+        .then(function(res){
+          if (res.error) throw res.error;
+          var rows = res.data || [];
+          if (rows.length === 0){
+            history.innerHTML = '<div class="empty">Aucun mouvement enregistré pour l\'instant.</div>';
+            return;
+          }
+          history.innerHTML = "";
+          rows.forEach(function(m){
+            var d = new Date(m.created_at);
+            var when = d.toLocaleDateString("fr-FR") + " " + d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+            var qty = (m.quantity_before != null && m.quantity_after != null && m.quantity_before !== m.quantity_after)
+              ? (m.quantity_before + " → " + m.quantity_after)
+              : (m.quantity_after != null ? ("stock " + m.quantity_after) : "");
+            var row = document.createElement("div");
+            row.className = "item-row";
+            row.innerHTML =
+              '<div class="item-info">' +
+                '<div class="name">' + escapeHtml(m.product_title) + '</div>' +
+                '<div class="meta">' + escapeHtml(MOVEMENT_LABELS[m.movement_type] || m.movement_type) + (qty ? " &middot; " + escapeHtml(qty) : "") + '</div>' +
+              '</div>' +
+              '<div class="meta" style="flex:none">' + when + '</div>';
+            history.appendChild(row);
+          });
+        })
+        .catch(function(err){
+          var extra = /relation .* does not exist|could not find the table/i.test((err && err.message) || "")
+            ? ' La table "stock_movements" n\'existe pas encore dans Supabase (migration à exécuter).'
+            : '';
+          history.innerHTML = '<div class="empty">Erreur : ' + escapeHtml(translateError(err)) + escapeHtml(extra) + '</div>';
+        });
+    }
+
     // ================== ARRIÈRE-BOUTIQUE 3D ==================
     var boStarted = false;
     var boReady = false;
@@ -631,6 +762,7 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
     var currentProducts = [];
     var panelMode = null; // "add" | "edit"
     var panelProduct = null;
+    var palletSlots = []; // zone de palettes au sol (gros électroménager / matériel) : décor fixe, rempli dynamiquement avec les vrais produits
 
     function initBackoffice(){
       if (boStarted) { refreshBackoffice(); return; }
@@ -949,20 +1081,20 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
         if (ev.button === 2) return; // géré par contextmenu
         var hit = hitFromEvent(ev);
         if (!hit) { deselectHit(); return; }
-        if (hit.kind === "add") openAddProductPanel();
+        if (hit.kind === "add") openAddProductPanel(hit.prefill);
         else selectHit(hit);
       });
       renderer.domElement.addEventListener("dblclick", function(ev){
         var hit = hitFromEvent(ev);
         if (!hit) return;
-        if (hit.kind === "add") openAddProductPanel();
+        if (hit.kind === "add") openAddProductPanel(hit.prefill);
         else openProductDetailPanel(hit.product);
       });
       renderer.domElement.addEventListener("contextmenu", function(ev){
         ev.preventDefault();
         var hit = hitFromEvent(ev);
         if (!hit) return;
-        if (hit.kind === "add") openAddProductPanel();
+        if (hit.kind === "add") openAddProductPanel(hit.prefill);
         else openEditProductPanel(hit.product);
       });
 
@@ -1350,9 +1482,20 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
        un espace balisé pour recevoir du matériel volumineux ou lourd livré sur
        palette (frigo, congélateur, groupe électrogène, enceinte de grande
        puissance, etc.) plutôt que de tout faire tenir sur les rayonnages. */
+    // Définition des 4 emplacements physiques de la zone palette (décor fixe :
+    // marquage au sol + palette en bois). Le contenu réel posé dessus (ou le
+    // panneau "vide, cliquer pour ajouter") est construit/reconstruit à chaque
+    // refreshBackoffice() par renderPalletSlot(), à partir des vrais produits
+    // (colonne products.pallet_slot), exactement comme les rayonnages.
+    var PALLET_SLOT_DEFS = [
+      { key:"fridge",    x:1.8, z:1.2, title:"Frigo / congelateur" },
+      { key:"freezer",   x:3.6, z:1.2, title:"Congelateur coffre" },
+      { key:"generator", x:1.8, z:2.8, title:"Groupe electrogene" },
+      { key:"speaker",   x:3.6, z:2.8, title:"Enceinte grande puissance" }
+    ];
+
     function buildFloorPalletZone(){
       var woodTex = woodTexture();
-      var blackMetalTex = blackMetalTexture();
       var palletWoodMat = new THREE.MeshStandardMaterial({ map: woodTex, roughness:0.85, metalness:0.0, color:0xd9c49a });
 
       var zoneMinX = 1.1, zoneMaxX = 4.3, zoneMinZ = 0.5, zoneMaxZ = 3.5;
@@ -1395,99 +1538,153 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
         return { group: pal, topY: palH };
       }
 
-      function addLabel(pal, h, title, sub){
-        var tex = textTexture(title, sub, "#16242b", "#f2f5f6");
-        var sign = new THREE.Mesh(new THREE.PlaneGeometry(1.3, 0.62), new THREE.MeshBasicMaterial({ map: tex, transparent:true }));
-        sign.position.set(0, pal.topY + h + 0.4, 0.5);
-        pal.group.add(sign);
+      palletSlots = PALLET_SLOT_DEFS.map(function(def){
+        var pal = buildPallet(def.x, def.z);
+        return { key: def.key, title: def.title, group: pal.group, topY: pal.topY };
+      });
+    }
+
+    // construit (ou reconstruit) le contenu d'une palette à partir du vrai
+    // produit assigné (products.pallet_slot), ou affiche un panneau "palette
+    // libre, cliquer pour ajouter" si aucun produit n'est encore assigné.
+    function renderPalletSlot(slot, product){
+      // retire le contenu précédent (jamais les planches/pieds de la palette elle-même)
+      slot.group.children.slice().forEach(function(c){
+        if (c.userData && c.userData.palletContent) slot.group.remove(c);
+      });
+
+      function tagged(mesh){ mesh.userData.palletContent = true; return mesh; }
+
+      var shapes = {
+        fridge:    { w:0.7,  h:1.68, d:0.66 },
+        freezer:   { w:1.0,  h:0.82, d:0.62 },
+        generator: { w:0.95, h:0.55, d:0.55 },
+        speaker:   { w:0.55, h:1.05, d:0.55 }
+      };
+      var dim = shapes[slot.key];
+      var topY = slot.topY;
+
+      if (!product){
+        // palette libre : silhouette fantôme + pancarte "+ Ajouter"
+        var ghost = tagged(new THREE.Mesh(
+          new THREE.BoxGeometry(dim.w, dim.h, dim.d),
+          new THREE.MeshStandardMaterial({ color:0x3fae84, transparent:true, opacity:0.12, roughness:0.9 })
+        ));
+        ghost.position.y = topY + dim.h / 2;
+        slot.group.add(ghost);
+        var edges = tagged(new THREE.LineSegments(
+          new THREE.EdgesGeometry(new THREE.BoxGeometry(dim.w, dim.h, dim.d)),
+          new THREE.LineBasicMaterial({ color:0x3fae84, transparent:true, opacity:0.55 })
+        ));
+        edges.position.y = topY + dim.h / 2;
+        slot.group.add(edges);
+        var hitbox = tagged(new THREE.Mesh(
+          new THREE.BoxGeometry(dim.w + 0.1, dim.h + 0.2, dim.d + 0.3),
+          new THREE.MeshBasicMaterial({ transparent:true, opacity:0 })
+        ));
+        hitbox.position.y = topY + dim.h / 2;
+        slot.group.add(hitbox);
+        var addTex = textTexture("+ Ajouter : " + slot.title, "Palette libre", "#16242b", "#3fae84");
+        var addSign = tagged(new THREE.Mesh(new THREE.PlaneGeometry(1.3, 0.62), new THREE.MeshBasicMaterial({ map: addTex, transparent:true })));
+        addSign.position.set(0, topY + dim.h + 0.4, 0.5);
+        slot.group.add(addSign);
+        clickable.push({ mesh: hitbox, kind: "add", prefill: { title: slot.title, pallet_slot: slot.key } });
+        return;
       }
 
-      // réfrigérateur
-      (function(){
-        var pal = buildPallet(1.8, 1.2);
+      var stock = (product.stock_quantity == null) ? 0 : product.stock_quantity;
+      var frameColor = product.en_vitrine ? 0x3fae84 : 0x6b645c;
+      var blackMetalTex = blackMetalTexture();
+
+      if (slot.key === "fridge"){
         var bodyMat = new THREE.MeshStandardMaterial({ color:0xeef0f1, roughness:0.35, metalness:0.25 });
         var darkMat = new THREE.MeshStandardMaterial({ color:0x2c2f31, roughness:0.4, metalness:0.5 });
-        var w = 0.7, h = 1.68, d = 0.66;
-        var body = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), bodyMat);
-        body.position.y = pal.topY + h/2;
-        body.castShadow = true; body.receiveShadow = true;
-        pal.group.add(body);
-        var seam = new THREE.Mesh(new THREE.BoxGeometry(w + 0.01, 0.025, d + 0.01), darkMat);
-        seam.position.y = pal.topY + h * 0.6;
-        pal.group.add(seam);
+        var body = tagged(new THREE.Mesh(new THREE.BoxGeometry(dim.w, dim.h, dim.d), bodyMat));
+        body.position.y = topY + dim.h/2; body.castShadow = true; body.receiveShadow = true;
+        slot.group.add(body);
+        var seam = tagged(new THREE.Mesh(new THREE.BoxGeometry(dim.w + 0.01, 0.025, dim.d + 0.01), darkMat));
+        seam.position.y = topY + dim.h * 0.6;
+        slot.group.add(seam);
         [0.62, 0.22].forEach(function(hf){
-          var handle = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.42, 0.04), darkMat);
-          handle.position.set(w/2 - 0.06, pal.topY + h * hf, d/2 + 0.03);
-          pal.group.add(handle);
+          var handle = tagged(new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.42, 0.04), darkMat));
+          handle.position.set(dim.w/2 - 0.06, topY + dim.h * hf, dim.d/2 + 0.03);
+          slot.group.add(handle);
         });
-        addLabel(pal, h, "Frigo / congelateur", "Zone palette pro");
-      })();
-
-      // congélateur coffre
-      (function(){
-        var pal = buildPallet(3.6, 1.2);
-        var bodyMat = new THREE.MeshStandardMaterial({ color:0xf2f4f5, roughness:0.3, metalness:0.2 });
-        var darkMat = new THREE.MeshStandardMaterial({ color:0x2c2f31, roughness:0.4, metalness:0.4 });
-        var w = 1.0, h = 0.82, d = 0.62;
-        var body = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), bodyMat);
-        body.position.y = pal.topY + h/2;
-        body.castShadow = true; body.receiveShadow = true;
-        pal.group.add(body);
-        var lidSeam = new THREE.Mesh(new THREE.BoxGeometry(w + 0.01, 0.02, d + 0.01), darkMat);
-        lidSeam.position.y = pal.topY + h - 0.06;
-        pal.group.add(lidSeam);
-        var panel = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.1, 0.02), darkMat);
-        panel.position.set(w/2 - 0.2, pal.topY + h - 0.02, d/2 + 0.011);
-        pal.group.add(panel);
-        addLabel(pal, h, "Congelateur coffre", "Zone palette pro");
-      })();
-
-      // groupe électrogène
-      (function(){
-        var pal = buildPallet(1.8, 2.8);
-        var bodyMat = new THREE.MeshStandardMaterial({ color:0x55604c, roughness:0.65, metalness:0.3 });
+      } else if (slot.key === "freezer"){
+        var bodyMat2 = new THREE.MeshStandardMaterial({ color:0xf2f4f5, roughness:0.3, metalness:0.2 });
+        var darkMat2 = new THREE.MeshStandardMaterial({ color:0x2c2f31, roughness:0.4, metalness:0.4 });
+        var body2 = tagged(new THREE.Mesh(new THREE.BoxGeometry(dim.w, dim.h, dim.d), bodyMat2));
+        body2.position.y = topY + dim.h/2; body2.castShadow = true; body2.receiveShadow = true;
+        slot.group.add(body2);
+        var lidSeam = tagged(new THREE.Mesh(new THREE.BoxGeometry(dim.w + 0.01, 0.02, dim.d + 0.01), darkMat2));
+        lidSeam.position.y = topY + dim.h - 0.06;
+        slot.group.add(lidSeam);
+        var panel2 = tagged(new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.1, 0.02), darkMat2));
+        panel2.position.set(dim.w/2 - 0.2, topY + dim.h - 0.02, dim.d/2 + 0.011);
+        slot.group.add(panel2);
+      } else if (slot.key === "generator"){
+        var bodyMat3 = new THREE.MeshStandardMaterial({ color:0x55604c, roughness:0.65, metalness:0.3 });
         var metalMat = new THREE.MeshStandardMaterial({ map: blackMetalTex, roughness:0.5, metalness:0.6 });
-        var w = 0.95, h = 0.55, d = 0.55;
-        var body = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), bodyMat);
-        body.position.y = pal.topY + h/2;
-        body.castShadow = true; body.receiveShadow = true;
-        pal.group.add(body);
-        var panel = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.16, 0.02), new THREE.MeshStandardMaterial({ color:0x24262a }));
-        panel.position.set(0, pal.topY + h * 0.55, d/2 + 0.011);
-        pal.group.add(panel);
-        var exhaust = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.28, 10), metalMat);
-        exhaust.position.set(w/2 - 0.12, pal.topY + h + 0.12, -d/2 + 0.12);
+        var body3 = tagged(new THREE.Mesh(new THREE.BoxGeometry(dim.w, dim.h, dim.d), bodyMat3));
+        body3.position.y = topY + dim.h/2; body3.castShadow = true; body3.receiveShadow = true;
+        slot.group.add(body3);
+        var panel3 = tagged(new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.16, 0.02), new THREE.MeshStandardMaterial({ color:0x24262a })));
+        panel3.position.set(0, topY + dim.h * 0.55, dim.d/2 + 0.011);
+        slot.group.add(panel3);
+        var exhaust = tagged(new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.28, 10), metalMat));
+        exhaust.position.set(dim.w/2 - 0.12, topY + dim.h + 0.12, -dim.d/2 + 0.12);
         exhaust.rotation.z = 0.15;
-        pal.group.add(exhaust);
-        [[-w/2+0.1,-d/2+0.1],[w/2-0.1,-d/2+0.1],[-w/2+0.1,d/2-0.1],[w/2-0.1,d/2-0.1]].forEach(function(p){
-          var wheel = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.05, 12), metalMat);
+        slot.group.add(exhaust);
+        [[-dim.w/2+0.1,-dim.d/2+0.1],[dim.w/2-0.1,-dim.d/2+0.1],[-dim.w/2+0.1,dim.d/2-0.1],[dim.w/2-0.1,dim.d/2-0.1]].forEach(function(p){
+          var wheel = tagged(new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.05, 12), metalMat));
           wheel.rotation.z = Math.PI/2;
-          wheel.position.set(p[0], pal.topY + 0.07, p[1]);
-          pal.group.add(wheel);
+          wheel.position.set(p[0], topY + 0.07, p[1]);
+          slot.group.add(wheel);
         });
-        addLabel(pal, h, "Groupe electrogene", "Zone palette pro");
-      })();
-
-      // enceinte acoustique grande puissance
-      (function(){
-        var pal = buildPallet(3.6, 2.8);
-        var bodyMat = new THREE.MeshStandardMaterial({ color:0x1c1d1f, roughness:0.85, metalness:0.05 });
+      } else if (slot.key === "speaker"){
+        var bodyMat4 = new THREE.MeshStandardMaterial({ color:0x1c1d1f, roughness:0.85, metalness:0.05 });
         var grilleMat = new THREE.MeshStandardMaterial({ color:0x101112, roughness:0.9, metalness:0.1 });
-        var w = 0.55, h = 1.05, d = 0.55;
-        var body = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), bodyMat);
-        body.position.y = pal.topY + h/2;
-        body.castShadow = true; body.receiveShadow = true;
-        pal.group.add(body);
-        var woofer = new THREE.Mesh(new THREE.CylinderGeometry(0.19, 0.19, 0.03, 24), grilleMat);
+        var body4 = tagged(new THREE.Mesh(new THREE.BoxGeometry(dim.w, dim.h, dim.d), bodyMat4));
+        body4.position.y = topY + dim.h/2; body4.castShadow = true; body4.receiveShadow = true;
+        slot.group.add(body4);
+        var woofer = tagged(new THREE.Mesh(new THREE.CylinderGeometry(0.19, 0.19, 0.03, 24), grilleMat));
         woofer.rotation.x = Math.PI/2;
-        woofer.position.set(0, pal.topY + h * 0.35, d/2 + 0.016);
-        pal.group.add(woofer);
-        var tweeter = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 0.03, 20), grilleMat);
+        woofer.position.set(0, topY + dim.h * 0.35, dim.d/2 + 0.016);
+        slot.group.add(woofer);
+        var tweeter = tagged(new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 0.03, 20), grilleMat));
         tweeter.rotation.x = Math.PI/2;
-        tweeter.position.set(0, pal.topY + h * 0.82, d/2 + 0.016);
-        pal.group.add(tweeter);
-        addLabel(pal, h, "Enceinte grande puissance", "Zone palette pro");
-      })();
+        tweeter.position.set(0, topY + dim.h * 0.82, dim.d/2 + 0.016);
+        slot.group.add(tweeter);
+      }
+
+      // liseré de couleur (vert = en vitrine, gris = pas en vitrine), comme sur les rayonnages
+      var stripe = tagged(new THREE.Mesh(
+        new THREE.BoxGeometry(dim.w + 0.06, 0.035, 0.035),
+        new THREE.MeshStandardMaterial({ color: frameColor, emissive: frameColor, emissiveIntensity:0.18 })
+      ));
+      stripe.position.set(0, topY + dim.h + 0.05, dim.d/2 + 0.02);
+      slot.group.add(stripe);
+
+      var hitbox2 = tagged(new THREE.Mesh(
+        new THREE.BoxGeometry(dim.w + 0.1, dim.h + 0.2, dim.d + 0.3),
+        new THREE.MeshBasicMaterial({ transparent:true, opacity:0 })
+      ));
+      hitbox2.position.y = topY + dim.h/2;
+      slot.group.add(hitbox2);
+
+      if (stock <= 0){
+        var emptyTex = textTexture("Rupture", product.title, "#241318", "#e2715c");
+        var emptySign = tagged(new THREE.Mesh(new THREE.PlaneGeometry(1.3, 0.62), new THREE.MeshBasicMaterial({ map: emptyTex, transparent:true })));
+        emptySign.position.set(0, topY + dim.h + 0.4, 0.5);
+        slot.group.add(emptySign);
+      } else {
+        var labelTex = textTexture(product.title, (isNaN(Number(product.price)) ? "" : Number(product.price).toLocaleString("fr-FR") + " $") + " · stock " + stock, "#16242b", "#f2f5f6");
+        var labelSign = tagged(new THREE.Mesh(new THREE.PlaneGeometry(1.3, 0.62), new THREE.MeshBasicMaterial({ map: labelTex, transparent:true })));
+        labelSign.position.set(0, topY + dim.h + 0.4, 0.5);
+        slot.group.add(labelSign);
+      }
+
+      clickable.push({ mesh: hitbox2, kind: "edit", product: product });
     }
 
     function clearShelves(){
@@ -1579,6 +1776,14 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
       counter.add(sign);
       shelfGroup.add(counter);
       clickable.push({ mesh: base, kind: "add" });
+
+      // zone de palettes au sol (gros électroménager / matériel lourd) : reconstruite
+      // ici à chaque rafraîchissement, à partir des vrais produits assignés par
+      // leur colonne pallet_slot — indépendant du nombre de produits "rayonnage".
+      palletSlots.forEach(function(slot){
+        var match = products.find(function(p){ return p.pallet_slot === slot.key; }) || null;
+        renderPalletSlot(slot, match);
+      });
 
       if (products.length === 0) return;
 
@@ -1718,13 +1923,15 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
       boPanel.classList.add("open");
     }
 
-    function openAddProductPanel(){
+    function openAddProductPanel(prefill){
       panelMode = "add";
       panelProduct = null;
-      document.getElementById("bo-panel-title").textContent = "Ajouter un produit";
+      var palletSlot = (prefill && prefill.pallet_slot) || null;
+      document.getElementById("bo-panel-title").textContent = prefill ? "Ajouter : " + prefill.title : "Ajouter un produit";
       boPanelBody.innerHTML =
         '<div id="bo-panel-msg"></div>' +
-        '<label>Nom du produit <input type="text" id="bo-p-title" placeholder="Ex. Robe wax bleue"></label>' +
+        (palletSlot ? '<div class="sub" style="margin:-4px 0 0">Cet article sera placé sur la palette « ' + escapeHtml(prefill.title) + ' » dans la zone de stockage lourd.</div>' : '') +
+        '<label>Nom du produit <input type="text" id="bo-p-title" placeholder="Ex. Robe wax bleue" value="' + (prefill ? escapeHtml(prefill.title) : "") + '"></label>' +
         '<label>Photo du produit <input type="file" id="bo-p-image" accept="image/*"></label>' +
         '<div id="bo-img-preview" class="hidden"></div>' +
         '<label>Prix ($) <input type="number" id="bo-p-price" min="0" step="0.01" placeholder="25"></label>' +
@@ -1772,11 +1979,13 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
               is_active: true,
               stock_quantity: stock,
               en_vitrine: enVitrine,
-              image_url: imageUrl
-            });
+              image_url: imageUrl,
+              pallet_slot: palletSlot
+            }).select().single();
           })
           .then(function(res){
             if (res.error) throw res.error;
+            logStockMovement(res.data, "creation", 0, stock);
             closeBoPanel();
             refreshBackoffice();
           })
@@ -1813,7 +2022,7 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
     // confirmée par un lien reçu par email avant d'être appliquée ----
     var STOCK_CONFIRM_KEY = "emp_stock_confirm_pending";
 
-    function requestStockConfirmationByEmail(p, newStock){
+    function requestStockConfirmationByEmail(p, newStock, oldStock){
       var ref = "sc" + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
       var redirectUrl = location.origin + location.pathname + "?confirm_stock=" + encodeURIComponent(ref);
       return client.auth.signInWithOtp({
@@ -1825,6 +2034,7 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
           ref: ref,
           productId: p.id,
           productTitle: p.title,
+          oldStock: (oldStock == null ? null : oldStock),
           newStock: newStock,
           requestedAt: Date.now()
         }));
@@ -1913,7 +2123,7 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
           return;
         }
         btn.disabled = true;
-        requestStockConfirmationByEmail(p, newStock)
+        requestStockConfirmationByEmail(p, newStock, stock)
           .then(function(){
             panelMsg("Email de confirmation envoyé à " + currentUser.email + ". Ouvre le lien reçu pour valider cette révision de stock.", "ok");
             renderProcessMenu();
@@ -1935,7 +2145,15 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
         var confirmLabel = p.is_active ? "Confirmer : masquer ?" : "Confirmer : mettre en ligne ?";
         armConfirm(btn, confirmLabel, originalLabel, function(){
           client.from("products").update({ is_active: !p.is_active }).eq("id", p.id)
-            .then(function(res2){ if (res2.error) throw res2.error; closeBoPanel(); refreshBackoffice(); })
+            .then(function(res2){
+              if (res2.error) throw res2.error;
+              logStockMovement(
+                { id: p.id, title: p.title, en_vitrine: p.en_vitrine, is_active: !p.is_active },
+                p.is_active ? "masquage" : "mise_en_ligne",
+                stock, stock
+              );
+              closeBoPanel(); refreshBackoffice();
+            })
             .catch(function(err){ panelMsg(translateError(err), "error"); });
         });
       });
@@ -1945,13 +2163,22 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
         var confirmLabel = p.en_vitrine ? "Confirmer : retirer de la vitrine ?" : "Confirmer : mettre en vitrine ?";
         armConfirm(btn, confirmLabel, originalLabel, function(){
           client.from("products").update({ en_vitrine: !p.en_vitrine }).eq("id", p.id)
-            .then(function(res2){ if (res2.error) throw res2.error; closeBoPanel(); refreshBackoffice(); })
+            .then(function(res2){
+              if (res2.error) throw res2.error;
+              logStockMovement(
+                { id: p.id, title: p.title, en_vitrine: !p.en_vitrine, is_active: p.is_active },
+                p.en_vitrine ? "vitrine_off" : "vitrine_on",
+                stock, stock
+              );
+              closeBoPanel(); refreshBackoffice();
+            })
             .catch(function(err){ panelMsg(translateError(err), "error"); });
         });
       });
       document.getElementById("bo-btn-delete").addEventListener("click", function(){
         var btn = this;
         armConfirm(btn, "Confirmer la suppression ?", "Supprimer ce produit", function(){
+          logStockMovement(p, "suppression", stock, null);
           client.from("products").delete().eq("id", p.id)
             .then(function(res2){ if (res2.error) throw res2.error; closeBoPanel(); refreshBackoffice(); })
             .catch(function(err){ panelMsg(translateError(err), "error"); });
