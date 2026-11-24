@@ -763,6 +763,7 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
     var panelMode = null; // "add" | "edit"
     var panelProduct = null;
     var palletSlots = []; // zone de palettes au sol (gros électroménager / matériel) : décor fixe, rempli dynamiquement avec les vrais produits
+    var shelfSlots = []; // rayonnages de la boutique : décor fixe (emplacements toujours disponibles), rempli dynamiquement avec les vrais produits
 
     function initBackoffice(){
       if (boStarted) { refreshBackoffice(); return; }
@@ -1031,6 +1032,7 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
 
       buildOfficeCorner();
       buildFloorPalletZone();
+      buildShelfRackZone();
 
       raycaster = new THREE.Raycaster();
       pointer = new THREE.Vector2();
@@ -1687,6 +1689,136 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
       clickable.push({ mesh: hitbox2, kind: "edit", product: product });
     }
 
+    /* rayonnages de la boutique : comme la zone de palettes, ce sont des
+       emplacements physiques fixes (décor construit une seule fois, hors de
+       shelfGroup pour survivre aux rafraîchissements), toujours présents,
+       que la boutique ait 0, 2 ou 6 produits. Chaque rayon reçoit soit le
+       vrai produit qui lui est assigné (products.shelf_slot), soit un
+       panneau "rayon libre, cliquer pour ajouter" tant qu'aucun produit ne
+       lui est assigné — exactement le même principe que les palettes. */
+    var SHELF_SLOT_DEFS = [
+      { index:0, x:-3.6, z:-2.0 },
+      { index:1, x:-2.4, z:-2.0 },
+      { index:2, x:-1.2, z:-2.0 },
+      { index:3, x:-3.6, z:-3.6 },
+      { index:4, x:-2.4, z:-3.6 },
+      { index:5, x:-1.2, z:-3.6 }
+    ];
+
+    function buildShelfRackZone(){
+      var blackMetalTex = blackMetalTexture();
+      var poleMat = new THREE.MeshStandardMaterial({ map: blackMetalTex, roughness:0.5, metalness:0.55 });
+      var plankMat = new THREE.MeshStandardMaterial({ map: blackMetalTex, roughness:0.5, metalness:0.5 });
+      var rackW = 1.5, rackD = 0.6, rackH = 2.3;
+
+      var zoneTex = textTexture("Rayons", "Emplacements pour la marchandise", "#16242b", "#f2f5f6");
+      var zoneSign = new THREE.Mesh(new THREE.PlaneGeometry(1.9, 0.9), new THREE.MeshBasicMaterial({ map: zoneTex, transparent:true }));
+      zoneSign.position.set(-2.4, 2.1, -4.05);
+      zoneSign.rotation.y = Math.PI;
+      scene.add(zoneSign);
+
+      shelfSlots = SHELF_SLOT_DEFS.map(function(def){
+        var group = new THREE.Group();
+        group.position.set(def.x, 0, def.z);
+        [[-rackW/2,-rackD/2], [rackW/2,-rackD/2], [-rackW/2,rackD/2], [rackW/2,rackD/2]].forEach(function(pos){
+          var pole = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, rackH, 8), poleMat);
+          pole.position.set(pos[0], rackH/2, pos[1]);
+          pole.castShadow = true;
+          group.add(pole);
+        });
+        [0.05, 1.05, rackH].forEach(function(y){
+          var plank = new THREE.Mesh(new THREE.BoxGeometry(rackW + 0.08, 0.06, rackD + 0.08), plankMat);
+          plank.position.y = y;
+          plank.castShadow = true;
+          plank.receiveShadow = true;
+          group.add(plank);
+        });
+        scene.add(group);
+        return { index: def.index, group: group, rackW: rackW, rackD: rackD, rackH: rackH };
+      });
+    }
+
+    // construit (ou reconstruit) le contenu d'un rayon à partir du vrai
+    // produit assigné (products.shelf_slot), ou affiche un panneau "rayon
+    // libre, cliquer pour ajouter" si aucun produit n'est encore assigné.
+    function renderShelfSlot(slot, product){
+      slot.group.children.slice().forEach(function(c){
+        if (c.userData && c.userData.shelfContent) slot.group.remove(c);
+      });
+      function tagged(mesh){ mesh.userData.shelfContent = true; return mesh; }
+
+      var rackW = slot.rackW, rackD = slot.rackD, rackH = slot.rackH;
+
+      var hitbox = tagged(new THREE.Mesh(
+        new THREE.BoxGeometry(rackW + 0.1, rackH, rackD + 0.3),
+        new THREE.MeshBasicMaterial({ transparent:true, opacity:0 })
+      ));
+      hitbox.position.y = rackH/2;
+      slot.group.add(hitbox);
+
+      if (!product){
+        var stripeGhost = tagged(new THREE.Mesh(
+          new THREE.BoxGeometry(rackW + 0.1, 0.05, 0.05),
+          new THREE.MeshStandardMaterial({ color:0x3fae84, transparent:true, opacity:0.4, emissive:0x3fae84, emissiveIntensity:0.1 })
+        ));
+        stripeGhost.position.set(0, rackH + 0.08, rackD/2 + 0.04);
+        slot.group.add(stripeGhost);
+        var addTex = textTexture("+ Ajouter un produit", "Rayon libre", "#16242b", "#3fae84");
+        var addSign = tagged(new THREE.Mesh(new THREE.PlaneGeometry(1.7, 0.8), new THREE.MeshBasicMaterial({ map: addTex, transparent:true })));
+        addSign.position.set(0, rackH + 0.55, rackD/2 + 0.04);
+        slot.group.add(addSign);
+        clickable.push({ mesh: hitbox, kind: "add", prefill: { shelf_slot: slot.index } });
+        return;
+      }
+
+      var stock = (product.stock_quantity == null) ? 0 : product.stock_quantity;
+      var frameColor = product.en_vitrine ? 0x3fae84 : 0x6b645c;
+      var crateMat = new THREE.MeshStandardMaterial({ map: cardboardTexture(), roughness:0.9 });
+
+      var stripe = tagged(new THREE.Mesh(
+        new THREE.BoxGeometry(rackW + 0.1, 0.07, 0.07),
+        new THREE.MeshStandardMaterial({ color: frameColor, emissive: frameColor, emissiveIntensity:0.18 })
+      ));
+      stripe.position.set(0, rackH + 0.08, rackD/2 + 0.04);
+      slot.group.add(stripe);
+
+      var crateCount = Math.min(stock, 6);
+      for (var c = 0; c < crateCount; c++){
+        var cc = c % 3;
+        var rr = Math.floor(c / 3);
+        var crate = tagged(new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.4, 0.4), crateMat));
+        crate.position.set(-0.4 + cc * 0.4, 1.05 + 0.23 + rr * 0.44, 0.02);
+        crate.castShadow = true;
+        crate.receiveShadow = true;
+        slot.group.add(crate);
+      }
+
+      if (stock <= 0){
+        var emptyTex = textTexture("Rupture", product.title, "#241318", "#e2715c");
+        var emptySign = tagged(new THREE.Mesh(new THREE.PlaneGeometry(1.7, 0.8), new THREE.MeshBasicMaterial({ map: emptyTex, transparent:true })));
+        emptySign.position.set(0, rackH + 0.55, rackD/2 + 0.04);
+        slot.group.add(emptySign);
+      } else {
+        var tex = textTexture(product.title, (isNaN(Number(product.price)) ? "" : Number(product.price).toLocaleString("fr-FR") + " $") + " · stock " + stock, "#16242b", "#f2f5f6");
+        var labelSign = tagged(new THREE.Mesh(new THREE.PlaneGeometry(1.9, 0.9), new THREE.MeshBasicMaterial({ map: tex, transparent:true })));
+        labelSign.position.set(0, rackH + 0.55, rackD/2 + 0.04);
+        slot.group.add(labelSign);
+      }
+
+      clickable.push({ mesh: hitbox, kind: "edit", product: product });
+    }
+
+    // renvoie l'indice du premier rayon libre (aucun produit assigné), ou
+    // null si tous les rayons sont occupés — utilisé par le comptoir
+    // générique "+ Nouveau produit" qui ne cible pas un rayon en particulier.
+    function firstFreeShelfSlot(){
+      for (var i = 0; i < SHELF_SLOT_DEFS.length; i++){
+        var taken = currentProducts.some(function(p){ return p.shelf_slot === i; });
+        if (!taken) return i;
+      }
+      return null;
+    }
+
     function clearShelves(){
       while (shelfGroup.children.length) shelfGroup.remove(shelfGroup.children[0]);
       clickable = [];
@@ -1785,87 +1917,12 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
         renderPalletSlot(slot, match);
       });
 
-      if (products.length === 0) return;
-
-      var cols = Math.min(products.length, 3);
-      var spacing = 2.1;
-      var totalWidth = (cols - 1) * spacing;
-      var startX = -totalWidth / 2 + 0.6; // décalé pour laisser de la place au comptoir
-      var rowZ = -2.9;
-
-      products.forEach(function(p, i){
-        var col = i % cols;
-        var row = Math.floor(i / cols);
-        var x = startX + col * spacing;
-        var z = rowZ - row * 2.3;
-
-        var group = new THREE.Group();
-        group.position.set(x, 0, z);
-
-        var stock = (p.stock_quantity == null) ? 0 : p.stock_quantity;
-        var frameColor = p.en_vitrine ? 0x3fae84 : 0x6b645c;
-
-        // vraie étagère métallique à 3 niveaux (montants + planches), comme
-        // un rayonnage d'entrepôt réel, plutôt qu'un simple bloc plein.
-        var rackW = 1.9, rackD = 0.6, rackH = 2.3;
-        var poleMat = new THREE.MeshStandardMaterial({ map: blackMetalTex, roughness:0.5, metalness:0.55 });
-        var plankMat = new THREE.MeshStandardMaterial({ map: blackMetalTex, roughness:0.5, metalness:0.5 });
-        [[-rackW/2,-rackD/2], [rackW/2,-rackD/2], [-rackW/2,rackD/2], [rackW/2,rackD/2]].forEach(function(pos){
-          var pole = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, rackH, 8), poleMat);
-          pole.position.set(pos[0], rackH/2, pos[1]);
-          pole.castShadow = true;
-          group.add(pole);
-        });
-        var shelfYs = [0.05, 1.05, rackH];
-        shelfYs.forEach(function(y){
-          var plank = new THREE.Mesh(new THREE.BoxGeometry(rackW + 0.08, 0.06, rackD + 0.08), plankMat);
-          plank.position.y = y;
-          plank.castShadow = true;
-          plank.receiveShadow = true;
-          group.add(plank);
-        });
-        // large boîte invisible pour faciliter le clic (zone de détection)
-        var hitbox = new THREE.Mesh(
-          new THREE.BoxGeometry(rackW + 0.1, rackH, rackD + 0.3),
-          new THREE.MeshBasicMaterial({ transparent:true, opacity:0 })
-        );
-        hitbox.position.y = rackH/2;
-        group.add(hitbox);
-
-        // liseré de couleur (vert = en vitrine, gris = pas en vitrine)
-        var stripe = new THREE.Mesh(
-          new THREE.BoxGeometry(rackW + 0.1, 0.07, 0.07),
-          new THREE.MeshStandardMaterial({ color: frameColor, emissive: frameColor, emissiveIntensity:0.18 })
-        );
-        stripe.position.set(0, rackH + 0.08, rackD/2 + 0.04);
-        group.add(stripe);
-
-        // caisses en carton empilées sur l'étagère du milieu, représentant le stock (jusqu'à 6 visibles)
-        var crateCount = Math.min(stock, 6);
-        var crateMat = new THREE.MeshStandardMaterial({ map: cardboardTexture(), roughness:0.9 });
-        for (var c = 0; c < crateCount; c++){
-          var cc = c % 3;
-          var rr = Math.floor(c / 3);
-          var crate = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.4, 0.4), crateMat);
-          crate.position.set(-0.55 + cc * 0.55, 1.05 + 0.23 + rr * 0.44, 0.02);
-          crate.castShadow = true;
-          crate.receiveShadow = true;
-          group.add(crate);
-        }
-        if (stock <= 0){
-          var emptyTex = textTexture("Rupture", p.title, "#241318", "#e2715c");
-          var emptySign = new THREE.Mesh(new THREE.PlaneGeometry(1.7, 0.8), new THREE.MeshBasicMaterial({ map: emptyTex, transparent:true }));
-          emptySign.position.set(0, rackH + 0.55, rackD/2 + 0.04);
-          group.add(emptySign);
-        } else {
-          var tex = textTexture(p.title, (isNaN(Number(p.price)) ? "" : Number(p.price).toLocaleString("fr-FR") + " $") + " · stock " + stock, "#16242b", "#f2f5f6");
-          var labelSign = new THREE.Mesh(new THREE.PlaneGeometry(1.9, 0.9), new THREE.MeshBasicMaterial({ map: tex, transparent:true }));
-          labelSign.position.set(0, rackH + 0.55, rackD/2 + 0.04);
-          group.add(labelSign);
-        }
-
-        shelfGroup.add(group);
-        clickable.push({ mesh: hitbox, kind: "edit", product: p });
+      // rayonnages de la boutique : tous les emplacements fixes sont toujours
+      // affichés (vides ou occupés), indépendamment du nombre de produits —
+      // même principe que la zone de palettes ci-dessus.
+      shelfSlots.forEach(function(slot){
+        var match = products.find(function(p){ return p.shelf_slot === slot.index; }) || null;
+        renderShelfSlot(slot, match);
       });
     }
 
@@ -1927,11 +1984,14 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
       panelMode = "add";
       panelProduct = null;
       var palletSlot = (prefill && prefill.pallet_slot) || null;
-      document.getElementById("bo-panel-title").textContent = prefill ? "Ajouter : " + prefill.title : "Ajouter un produit";
+      var shelfSlot = (prefill && typeof prefill.shelf_slot === "number") ? prefill.shelf_slot : null;
+      var prefillTitle = (prefill && prefill.title) || "";
+      document.getElementById("bo-panel-title").textContent = prefillTitle ? "Ajouter : " + prefillTitle : "Ajouter un produit";
       boPanelBody.innerHTML =
         '<div id="bo-panel-msg"></div>' +
-        (palletSlot ? '<div class="sub" style="margin:-4px 0 0">Cet article sera placé sur la palette « ' + escapeHtml(prefill.title) + ' » dans la zone de stockage lourd.</div>' : '') +
-        '<label>Nom du produit <input type="text" id="bo-p-title" placeholder="Ex. Robe wax bleue" value="' + (prefill ? escapeHtml(prefill.title) : "") + '"></label>' +
+        (palletSlot ? '<div class="sub" style="margin:-4px 0 0">Cet article sera placé sur la palette « ' + escapeHtml(prefillTitle) + ' » dans la zone de stockage lourd.</div>' : '') +
+        (shelfSlot != null ? '<div class="sub" style="margin:-4px 0 0">Cet article sera placé sur ce rayon.</div>' : '') +
+        '<label>Nom du produit <input type="text" id="bo-p-title" placeholder="Ex. Robe wax bleue" value="' + escapeHtml(prefillTitle) + '"></label>' +
         '<label>Photo du produit <input type="file" id="bo-p-image" accept="image/*"></label>' +
         '<div id="bo-img-preview" class="hidden"></div>' +
         '<label>Prix ($) <input type="number" id="bo-p-price" min="0" step="0.01" placeholder="25"></label>' +
@@ -1966,6 +2026,19 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
           return;
         }
         if (isNaN(stock) || stock < 0) stock = 0;
+
+        // le comptoir générique "+ Nouveau produit" ne cible aucun rayon en
+        // particulier : on lui assigne automatiquement le premier rayon
+        // libre (sauf si l'article va sur une palette).
+        var finalShelfSlot = shelfSlot;
+        if (!palletSlot && finalShelfSlot == null){
+          finalShelfSlot = firstFreeShelfSlot();
+          if (finalShelfSlot == null){
+            panelMsg("Tous les rayons sont occupés. Libère un emplacement avant d'ajouter un nouveau produit.", "error");
+            return;
+          }
+        }
+
         var btn = document.getElementById("bo-btn-add-product");
         btn.disabled = true;
 
@@ -1980,7 +2053,8 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
               stock_quantity: stock,
               en_vitrine: enVitrine,
               image_url: imageUrl,
-              pallet_slot: palletSlot
+              pallet_slot: palletSlot,
+              shelf_slot: finalShelfSlot
             }).select().single();
           })
           .then(function(res){
