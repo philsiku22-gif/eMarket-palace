@@ -1540,9 +1540,13 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
         return { group: pal, topY: palH };
       }
 
-      palletSlots = PALLET_SLOT_DEFS.map(function(def){
+      palletSlots = PALLET_SLOT_DEFS.map(function(def, idx){
         var pal = buildPallet(def.x, def.z);
-        return { key: def.key, title: def.title, group: pal.group, topY: pal.topY };
+        var numTex = textTexture("N° " + (idx + 1), "Palette", "#0d4d33", "#ffffff");
+        var numTag = new THREE.Mesh(new THREE.PlaneGeometry(0.46, 0.46), new THREE.MeshBasicMaterial({ map: numTex, transparent:true }));
+        numTag.position.set(-0.4, pal.topY + 0.3, 0.5);
+        pal.group.add(numTag);
+        return { key: def.key, index: idx, title: def.title, group: pal.group, topY: pal.topY };
       });
     }
 
@@ -1586,7 +1590,7 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
         ));
         hitbox.position.y = topY + dim.h / 2;
         slot.group.add(hitbox);
-        var addTex = textTexture("+ Ajouter : " + slot.title, "Palette libre", "#16242b", "#3fae84");
+        var addTex = textTexture("+ Ajouter : " + slot.title, "Palette n°" + (slot.index + 1) + " libre", "#16242b", "#3fae84");
         var addSign = tagged(new THREE.Mesh(new THREE.PlaneGeometry(1.3, 0.62), new THREE.MeshBasicMaterial({ map: addTex, transparent:true })));
         addSign.position.set(0, topY + dim.h + 0.4, 0.5);
         slot.group.add(addSign);
@@ -1733,6 +1737,11 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
           plank.receiveShadow = true;
           group.add(plank);
         });
+        var numTex = textTexture("N° " + (def.index + 1), "Rayon", "#0d4d33", "#ffffff");
+        var numTag = new THREE.Mesh(new THREE.PlaneGeometry(0.46, 0.46), new THREE.MeshBasicMaterial({ map: numTex, transparent:true }));
+        numTag.position.set(-rackW/2 + 0.3, 0.3, rackD/2 + 0.045);
+        group.add(numTag);
+
         scene.add(group);
         return { index: def.index, group: group, rackW: rackW, rackD: rackD, rackH: rackH };
       });
@@ -1763,7 +1772,7 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
         ));
         stripeGhost.position.set(0, rackH + 0.08, rackD/2 + 0.04);
         slot.group.add(stripeGhost);
-        var addTex = textTexture("+ Ajouter un produit", "Rayon libre", "#16242b", "#3fae84");
+        var addTex = textTexture("+ Ajouter un produit", "Rayon n°" + (slot.index + 1) + " libre", "#16242b", "#3fae84");
         var addSign = tagged(new THREE.Mesh(new THREE.PlaneGeometry(1.7, 0.8), new THREE.MeshBasicMaterial({ map: addTex, transparent:true })));
         addSign.position.set(0, rackH + 0.55, rackD/2 + 0.04);
         slot.group.add(addSign);
