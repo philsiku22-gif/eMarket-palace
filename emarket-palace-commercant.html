@@ -396,7 +396,7 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
             var updated = res2.data;
             // journalise ce mouvement dans la fiche de stock (ne bloque jamais
             // la confirmation elle-même en cas d'échec de l'écriture).
-            client.from("stock_movements").insert({
+            Promise.resolve(client.from("stock_movements").insert({
               store_id: updated.store_id,
               product_id: updated.id,
               product_title: pending.productTitle,
@@ -405,7 +405,7 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
               quantity_after: pending.newStock,
               en_vitrine_after: updated.en_vitrine,
               is_active_after: updated.is_active
-            }).catch(function(e){ console.warn("Fiche de stock : mouvement non enregistré (stock_update) :", e); });
+            })).catch(function(e){ console.warn("Fiche de stock : mouvement non enregistré (stock_update) :", e); });
             // la procédure est réinitialisée ici : la demande en attente est
             // effacée dès l'enregistrement, avant même que le marchand clique
             // sur "Clôturer" — ce bouton sert seulement à continuer ensuite.
@@ -669,7 +669,7 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
 
     function logStockMovement(p, type, qtyBefore, qtyAfter){
       if (!client || !myStore || !p) return Promise.resolve();
-      return client.from("stock_movements").insert({
+      return Promise.resolve(client.from("stock_movements").insert({
         store_id: myStore.id,
         product_id: p.id || null,
         product_title: p.title || "(produit)",
@@ -678,7 +678,7 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
         quantity_after: (qtyAfter == null ? null : qtyAfter),
         en_vitrine_after: (p.en_vitrine == null ? null : p.en_vitrine),
         is_active_after: (p.is_active == null ? null : p.is_active)
-      }).catch(function(err){
+      })).catch(function(err){
         console.warn("Fiche de stock : mouvement non enregistré (" + type + ") :", err);
       });
     }
