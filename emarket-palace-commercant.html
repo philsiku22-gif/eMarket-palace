@@ -1218,6 +1218,18 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
       return tex;
     }
 
+    // charge (et met en cache) la vraie photo d'un produit comme texture,
+    // pour l'afficher directement sur son emplacement en 3D ; chargement
+    // asynchrone, s'affiche dès que prête grâce à la boucle de rendu continue.
+    var productPhotoLoader = new THREE.TextureLoader();
+    productPhotoLoader.setCrossOrigin("anonymous");
+    var productPhotoCache = {};
+    function productPhotoTexture(url){
+      if (!url) return null;
+      if (!productPhotoCache[url]) productPhotoCache[url] = productPhotoLoader.load(url);
+      return productPhotoCache[url];
+    }
+
     /* ---- textures procédurales (aucune image externe nécessaire) pour que
        le sol, les murs et les étagères ressemblent à de vraies surfaces au
        lieu d'aplats de couleur plate. ---- */
@@ -1692,6 +1704,17 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
         slot.group.add(labelSign);
       }
 
+      // vraie photo du produit (si une photo a été ajoutée), affichée
+      // au-dessus de la pancarte texte, directement sur l'emplacement.
+      if (product.image_url){
+        var photoPlane2 = tagged(new THREE.Mesh(
+          new THREE.PlaneGeometry(0.46, 0.46),
+          new THREE.MeshBasicMaterial({ map: productPhotoTexture(product.image_url), transparent:true, side: THREE.DoubleSide })
+        ));
+        photoPlane2.position.set(0, topY + dim.h + 1.0, 0.5);
+        slot.group.add(photoPlane2);
+      }
+
       clickable.push({ mesh: hitbox2, kind: "edit", product: product });
     }
 
@@ -1815,6 +1838,17 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
         var labelSign = tagged(new THREE.Mesh(new THREE.PlaneGeometry(1.9, 0.9), new THREE.MeshBasicMaterial({ map: tex, transparent:true })));
         labelSign.position.set(0, rackH + 0.55, rackD/2 + 0.04);
         slot.group.add(labelSign);
+      }
+
+      // vraie photo du produit (si une photo a été ajoutée), affichée
+      // directement sur le rayon, entre les caisses et la pancarte texte.
+      if (product.image_url){
+        var photoPlane = tagged(new THREE.Mesh(
+          new THREE.PlaneGeometry(0.46, 0.46),
+          new THREE.MeshBasicMaterial({ map: productPhotoTexture(product.image_url), transparent:true, side: THREE.DoubleSide })
+        ));
+        photoPlane.position.set(0, rackH - 0.12, rackD/2 + 0.05);
+        slot.group.add(photoPlane);
       }
 
       clickable.push({ mesh: hitbox, kind: "edit", product: product });
@@ -2138,7 +2172,10 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
         var btn = document.getElementById("bo-btn-add-product");
         btn.disabled = true;
 
-        (imageFile ? uploadProductImage(imageFile) : Promise.resolve(null))
+        // si la photo a déjà été envoyée (pour la recherche en ligne), on
+        // réutilise son URL au lieu de la renvoyer une seconde fois : le
+        // produit apparaît plus vite sur son emplacement après le clic.
+        (imageFile ? (photoSearchUrl ? Promise.resolve(photoSearchUrl) : uploadProductImage(imageFile)) : Promise.resolve(null))
           .then(function(imageUrl){
             return client.from("products").insert({
               store_id: myStore.id,
