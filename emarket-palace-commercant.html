@@ -1709,12 +1709,13 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
         slot.group.add(labelSign);
       }
 
+      // photo_offset_y permet au commerçant d'ajuster la hauteur à la main.
       if (product.image_url){
         var photoPlane2 = tagged(new THREE.Mesh(
           new THREE.PlaneGeometry(0.34, 0.34),
           new THREE.MeshBasicMaterial({ map: productPhotoTexture(product.image_url), transparent:true, side: THREE.DoubleSide })
         ));
-        photoPlane2.position.set(0, topY + dim.h + 0.08, 0.5);
+        photoPlane2.position.set(0, topY + dim.h + 0.08 + (Number(product.photo_offset_y) || 0), 0.5);
         slot.group.add(photoPlane2);
       }
 
@@ -1844,13 +1845,14 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
       }
 
       // vraie photo du produit (si une photo a été ajoutée), affichée
-      // directement sur le rayon, entre les caisses et la pancarte texte.
+      // directement sur le rayon, entre les caisses et la pancarte texte ;
+      // photo_offset_y permet au commerçant d'ajuster la hauteur à la main.
       if (product.image_url){
         var photoPlane = tagged(new THREE.Mesh(
           new THREE.PlaneGeometry(0.46, 0.46),
           new THREE.MeshBasicMaterial({ map: productPhotoTexture(product.image_url), transparent:true, side: THREE.DoubleSide })
         ));
-        photoPlane.position.set(0, rackH - 0.12, rackD/2 + 0.05);
+        photoPlane.position.set(0, rackH - 0.12 + (Number(product.photo_offset_y) || 0), rackD/2 + 0.05);
         slot.group.add(photoPlane);
       }
 
@@ -1973,6 +1975,18 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
         var match = products.find(function(p){ return p.shelf_slot === slot.index; }) || null;
         renderShelfSlot(slot, match);
       });
+    }
+
+    // redessine juste l'emplacement d'un produit (sans tout rafraîchir),
+    // utilisé pour l'aperçu en direct du curseur de position de photo.
+    function rerenderProductSlot(p){
+      if (p.pallet_slot){
+        var ps = palletSlots.find(function(s){ return s.key === p.pallet_slot; });
+        if (ps) renderPalletSlot(ps, p);
+      } else if (p.shelf_slot != null){
+        var ss = shelfSlots.find(function(s){ return s.index === p.shelf_slot; });
+        if (ss) renderShelfSlot(ss, p);
+      }
     }
 
     function refreshBackoffice(){
@@ -2280,6 +2294,12 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
         (p.image_url ? '<div id="bo-img-preview"><img src="' + escapeHtml(p.image_url) + '"></div>' : '<div style="font-size:.78rem; color:#a69d8f">Pas encore de photo pour ce produit.</div>') +
         '<label>' + (p.image_url ? "Changer la photo" : "Ajouter une photo") + ' <input type="file" id="bo-e-image" accept="image/*"></label>' +
         '<div id="bo-image-save-wrap"></div>' +
+        (p.image_url ?
+          '<label>Position de la photo sur l\'emplacement (haut / bas)' +
+            '<input type="range" id="bo-e-photo-offset" min="-0.5" max="0.5" step="0.02" value="' + (Number(p.photo_offset_y) || 0) + '">' +
+          '</label>' +
+          '<div class="sub" style="margin-top:-6px; font-size:.74rem">Ajuste et regarde la scène 3D derrière ce panneau : la photo bouge en direct.</div>'
+        : '') +
         '<div style="display:flex; align-items:center; gap:8px; margin-top:-2px">' +
           '<span class="pill" id="bo-btn-move-earlier"' + (posIdx <= 0 ? ' style="opacity:.35; pointer-events:none"' : '') + '>◀ Plus tôt</span>' +
           '<span style="font-size:.72rem; color:#a69d8f; flex:1; text-align:center">Emplacement ' + (posIdx + 1) + ' / ' + posTotal + '</span>' +
@@ -2293,6 +2313,22 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
           '<span class="pill' + (p.en_vitrine ? ' active' : '') + '" id="bo-toggle-vitrine">' + (p.en_vitrine ? "Retirer de la vitrine" : "Mettre en vitrine") + '</span>' +
         '</div>' +
         '<button id="bo-btn-delete" style="background:transparent; color:#e2715c; border:1px solid #e2715c; margin-top:8px">Supprimer ce produit</button>';
+
+      var photoOffsetInput = document.getElementById("bo-e-photo-offset");
+      if (photoOffsetInput){
+        // en direct pendant qu'on glisse le curseur : juste un aperçu, rien
+        // n'est encore enregistré en base.
+        photoOffsetInput.addEventListener("input", function(){
+          p.photo_offset_y = parseFloat(this.value) || 0;
+          rerenderProductSlot(p);
+        });
+        // au relâchement du curseur : on enregistre la position choisie.
+        photoOffsetInput.addEventListener("change", function(){
+          client.from("products").update({ photo_offset_y: parseFloat(this.value) || 0 }).eq("id", p.id)
+            .then(function(res2){ if (res2.error) throw res2.error; })
+            .catch(function(err){ panelMsg(translateError(err), "error"); });
+        });
+      }
 
       document.getElementById("bo-e-image").addEventListener("change", function(){
         var file = this.files && this.files[0];
