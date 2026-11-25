@@ -2037,15 +2037,11 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
         '<div id="bo-panel-msg"></div>' +
         (palletSlot ? '<div class="sub" style="margin:-4px 0 0">Cet article sera placé sur la palette « ' + escapeHtml(prefillTitle) + ' » dans la zone de stockage lourd.</div>' : '') +
         (shelfSlot != null ? '<div class="sub" style="margin:-4px 0 0">Cet article sera placé sur ce rayon.</div>' : '') +
-        '<label>Nom du produit' +
-          '<div style="display:flex; gap:6px; align-items:center">' +
-            '<input type="text" id="bo-p-title" placeholder="Ex. Robe wax bleue" value="' + escapeHtml(prefillTitle) + '" style="flex:1">' +
-            '<button type="button" id="bo-btn-search-online" class="pill" style="white-space:nowrap; padding:10px 12px">🔎 Chercher en ligne</button>' +
-          '</div>' +
-        '</label>' +
-        '<div class="sub" style="margin-top:-6px; font-size:.74rem">Ajoute la photo ci-dessous puis clique : Google cherche le produit à partir de la photo. Sans photo, tape juste le nom et clique.</div>' +
+        '<label>Nom du produit <input type="text" id="bo-p-title" placeholder="Ex. Robe wax bleue" value="' + escapeHtml(prefillTitle) + '"></label>' +
         '<label>Photo du produit <input type="file" id="bo-p-image" accept="image/*"></label>' +
         '<div id="bo-img-preview" class="hidden"></div>' +
+        '<button type="button" id="bo-btn-search-online" class="pill" style="width:100%">🔎 Chercher en ligne</button>' +
+        '<div class="sub" style="margin-top:-6px; font-size:.74rem">Ajoute la photo ci-dessus puis clique : Google cherche le produit à partir de la photo. Sans photo, tape juste le nom et clique.</div>' +
         '<label>Prix ($) <input type="number" id="bo-p-price" min="0" step="0.01" placeholder="25"></label>' +
         '<label>Quantité en stock <input type="number" id="bo-p-stock" min="0" step="1" value="1"></label>' +
         '<div id="bo-desc-simple">' +
