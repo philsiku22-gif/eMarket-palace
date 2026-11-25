@@ -1692,26 +1692,29 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
       hitbox2.position.y = topY + dim.h/2;
       slot.group.add(hitbox2);
 
+      // vraie photo du produit (si une photo a été ajoutée), affichée
+      // juste au-dessus du produit lui-même (et non loin au-dessus) ; la
+      // pancarte texte est repoussée un peu plus haut pour lui laisser la place.
+      var signY = topY + dim.h + (product.image_url ? 0.75 : 0.4);
+
       if (stock <= 0){
         var emptyTex = textTexture("Rupture", product.title, "#241318", "#e2715c");
         var emptySign = tagged(new THREE.Mesh(new THREE.PlaneGeometry(1.3, 0.62), new THREE.MeshBasicMaterial({ map: emptyTex, transparent:true })));
-        emptySign.position.set(0, topY + dim.h + 0.4, 0.5);
+        emptySign.position.set(0, signY, 0.5);
         slot.group.add(emptySign);
       } else {
         var labelTex = textTexture(product.title, (isNaN(Number(product.price)) ? "" : Number(product.price).toLocaleString("fr-FR") + " $") + " · stock " + stock, "#16242b", "#f2f5f6");
         var labelSign = tagged(new THREE.Mesh(new THREE.PlaneGeometry(1.3, 0.62), new THREE.MeshBasicMaterial({ map: labelTex, transparent:true })));
-        labelSign.position.set(0, topY + dim.h + 0.4, 0.5);
+        labelSign.position.set(0, signY, 0.5);
         slot.group.add(labelSign);
       }
 
-      // vraie photo du produit (si une photo a été ajoutée), affichée
-      // au-dessus de la pancarte texte, directement sur l'emplacement.
       if (product.image_url){
         var photoPlane2 = tagged(new THREE.Mesh(
-          new THREE.PlaneGeometry(0.46, 0.46),
+          new THREE.PlaneGeometry(0.34, 0.34),
           new THREE.MeshBasicMaterial({ map: productPhotoTexture(product.image_url), transparent:true, side: THREE.DoubleSide })
         ));
-        photoPlane2.position.set(0, topY + dim.h + 1.0, 0.5);
+        photoPlane2.position.set(0, topY + dim.h + 0.08, 0.5);
         slot.group.add(photoPlane2);
       }
 
