@@ -2308,17 +2308,22 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
       document.getElementById("bo-panel-title").textContent = p.title;
       boPanelBody.innerHTML =
         '<div id="bo-panel-msg"></div>' +
-        (p.image_url ? '<div id="bo-img-preview"><img src="' + escapeHtml(p.image_url) + '"></div>' : '<div style="font-size:.78rem; color:#a69d8f">Pas encore de photo pour ce produit.</div>') +
+        (p.image_url ?
+          '<div style="min-height:150px; display:flex; align-items:center; justify-content:center; background:#20190f; border-radius:9px; padding:14px 0">' +
+            '<div id="bo-img-resize-wrap" style="position:relative; display:inline-block; touch-action:none">' +
+              '<img id="bo-img-resize-img" src="' + escapeHtml(p.image_url) + '" style="display:block; width:' + Math.round(100 * (Number(p.photo_scale) || 1)) + 'px; height:' + Math.round(100 * (Number(p.photo_scale) || 1)) + 'px; object-fit:cover; border-radius:9px; border:1px solid #352f27">' +
+              '<div id="bo-img-resize-handle" style="position:absolute; right:-8px; bottom:-8px; width:18px; height:18px; border-radius:50%; background:#3fae84; border:2px solid #16242b; cursor:nwse-resize; touch-action:none"></div>' +
+            '</div>' +
+          '</div>' +
+          '<div class="sub" style="margin-top:-6px; font-size:.74rem">Tire le petit rond en bas à droite de la photo pour l\'agrandir ou la réduire, comme dans Word.</div>'
+        : '<div style="font-size:.78rem; color:#a69d8f">Pas encore de photo pour ce produit.</div>') +
         '<label>' + (p.image_url ? "Changer la photo" : "Ajouter une photo") + ' <input type="file" id="bo-e-image" accept="image/*"></label>' +
         '<div id="bo-image-save-wrap"></div>' +
         (p.image_url ?
           '<label>Position de la photo sur l\'emplacement (haut / bas)' +
             '<input type="range" id="bo-e-photo-offset" min="-0.5" max="0.5" step="0.02" value="' + (Number(p.photo_offset_y) || 0) + '">' +
           '</label>' +
-          '<label>Taille de la photo (agrandir / réduire)' +
-            '<input type="range" id="bo-e-photo-scale" min="0.4" max="2.5" step="0.05" value="' + (Number(p.photo_scale) || 1) + '">' +
-          '</label>' +
-          '<div class="sub" style="margin-top:-6px; font-size:.74rem">Ajuste et regarde la scène 3D derrière ce panneau : la photo bouge/change de taille en direct.</div>'
+          '<div class="sub" style="margin-top:-6px; font-size:.74rem">Ajuste et regarde la scène 3D derrière ce panneau : la photo bouge en direct.</div>'
         : '') +
         '<div style="display:flex; align-items:center; gap:8px; margin-top:-2px">' +
           '<span class="pill" id="bo-btn-move-earlier"' + (posIdx <= 0 ? ' style="opacity:.35; pointer-events:none"' : '') + '>◀ Plus tôt</span>' +
@@ -2350,19 +2355,36 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
         });
       }
 
-      var photoScaleInput = document.getElementById("bo-e-photo-scale");
-      if (photoScaleInput){
-        // en direct pendant qu'on glisse le curseur : juste un aperçu, rien
-        // n'est encore enregistré en base.
-        photoScaleInput.addEventListener("input", function(){
-          p.photo_scale = parseFloat(this.value) || 1;
+      // Poignée de redimensionnement sur la photo elle-même (comme pour une
+      // image collée dans Word) : on tire le rond en bas à droite pour
+      // l'agrandir ou la réduire, avec aperçu 2D et 3D en direct.
+      var resizeImg = document.getElementById("bo-img-resize-img");
+      var resizeHandle = document.getElementById("bo-img-resize-handle");
+      if (resizeImg && resizeHandle){
+        var dragStart = null;
+        var onResizeMove = function(ev){
+          if (!dragStart) return;
+          var delta = ((ev.clientX - dragStart.x) + (ev.clientY - dragStart.y)) / 2;
+          var newSize = Math.max(40, Math.min(250, dragStart.size + delta));
+          resizeImg.style.width = newSize + "px";
+          resizeImg.style.height = newSize + "px";
+          p.photo_scale = newSize / 100;
           rerenderProductSlot(p);
-        });
-        // au relâchement du curseur : on enregistre la taille choisie.
-        photoScaleInput.addEventListener("change", function(){
-          client.from("products").update({ photo_scale: parseFloat(this.value) || 1 }).eq("id", p.id)
+        };
+        var onResizeUp = function(){
+          if (!dragStart) return;
+          dragStart = null;
+          document.removeEventListener("pointermove", onResizeMove);
+          document.removeEventListener("pointerup", onResizeUp);
+          client.from("products").update({ photo_scale: p.photo_scale || 1 }).eq("id", p.id)
             .then(function(res2){ if (res2.error) throw res2.error; })
             .catch(function(err){ panelMsg(translateError(err), "error"); });
+        };
+        resizeHandle.addEventListener("pointerdown", function(ev){
+          ev.preventDefault();
+          dragStart = { x: ev.clientX, y: ev.clientY, size: resizeImg.offsetWidth };
+          document.addEventListener("pointermove", onResizeMove);
+          document.addEventListener("pointerup", onResizeUp);
         });
       }
 
