@@ -2009,7 +2009,7 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
             '<button type="button" id="bo-btn-search-online" class="pill" style="white-space:nowrap; padding:10px 12px">🔎 Chercher en ligne</button>' +
           '</div>' +
         '</label>' +
-        '<div class="sub" style="margin-top:-6px; font-size:.74rem">Tape le nom puis clique pour voir si ce produit existe déjà en ligne (photos, caractéristiques à reprendre).</div>' +
+        '<div class="sub" style="margin-top:-6px; font-size:.74rem">Tape le nom puis clique : Google en mode IA te résume le produit s\'il existe déjà en ligne (marque, modèle, caractéristiques à reprendre).</div>' +
         '<label>Photo du produit <input type="file" id="bo-p-image" accept="image/*"></label>' +
         '<div id="bo-img-preview" class="hidden"></div>' +
         '<label>Prix ($) <input type="number" id="bo-p-price" min="0" step="0.01" placeholder="25"></label>' +
@@ -2041,16 +2041,17 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
         imgPreview.classList.remove("hidden");
       });
 
-      // recherche en ligne : ouvre une recherche web sur le nom tapé, pour
-      // que le commerçant puisse vérifier si le produit existe déjà et
-      // reprendre ses caractéristiques (marque, modèle, puissance...).
+      // recherche en ligne : ouvre Google en mode IA (udm=50) sur le nom
+      // tapé, pour que le commerçant obtienne directement un résumé des
+      // caractéristiques du produit (marque, modèle, puissance...) s'il
+      // existe déjà en ligne, sans avoir à éplucher plusieurs pages.
       document.getElementById("bo-btn-search-online").addEventListener("click", function(){
         var q = document.getElementById("bo-p-title").value.trim();
         if (!q){
           panelMsg("Écris d'abord le nom du produit pour pouvoir le chercher en ligne.", "error");
           return;
         }
-        window.open("https://www.google.com/search?q=" + encodeURIComponent(q) + "&tbm=isch", "_blank", "noopener");
+        window.open("https://www.google.com/search?udm=50&q=" + encodeURIComponent(q), "_blank", "noopener");
       });
 
       // description : par défaut des rubriques simples à remplir (marque,
