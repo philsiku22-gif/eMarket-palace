@@ -759,6 +759,7 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
     var selectionHighlight = null, selectedHit = null;
     var move = { fwd:false, back:false, left:false, right:false };
     var downPos = null;
+    var lastClickTime = 0, lastClickHit = null;
     var currentProducts = [];
     var panelMode = null; // "add" | "edit"
     var panelProduct = null;
@@ -1083,15 +1084,27 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
         if (moved > 6) return;
         if (ev.button === 2) return; // géré par contextmenu
         var hit = hitFromEvent(ev);
+
+        // Détection manuelle du double-clic / double-tap (plus fiable que
+        // l'événement "dblclick" natif sur les écrans tactiles) : deux clics
+        // rapprochés sur le même emplacement ouvrent directement la gestion.
+        var now = Date.now();
+        var sameTarget = hit && lastClickHit &&
+          (hit.kind === lastClickHit.kind) &&
+          ((hit.kind === "edit" && hit.product.id === lastClickHit.product.id) ||
+           (hit.kind === "add" && hit.prefill === lastClickHit.prefill));
+        if (hit && sameTarget && (now - lastClickTime) < 450){
+          lastClickTime = 0; lastClickHit = null;
+          if (hit.kind === "add") openAddProductPanel(hit.prefill);
+          else openEditProductPanel(hit.product);
+          return;
+        }
+        lastClickTime = now;
+        lastClickHit = hit;
+
         if (!hit) { deselectHit(); return; }
         if (hit.kind === "add") openAddProductPanel(hit.prefill);
         else selectHit(hit);
-      });
-      renderer.domElement.addEventListener("dblclick", function(ev){
-        var hit = hitFromEvent(ev);
-        if (!hit) return;
-        if (hit.kind === "add") openAddProductPanel(hit.prefill);
-        else openEditProductPanel(hit.product);
       });
       renderer.domElement.addEventListener("contextmenu", function(ev){
         ev.preventDefault();
@@ -1709,10 +1722,12 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
         slot.group.add(labelSign);
       }
 
-      // photo_offset_y permet au commerçant d'ajuster la hauteur à la main.
+      // photo_offset_y permet au commerçant d'ajuster la hauteur à la main,
+      // photo_scale la taille (agrandir / réduire) de la photo affichée.
       if (product.image_url){
+        var photoSize2 = 0.34 * (Number(product.photo_scale) || 1);
         var photoPlane2 = tagged(new THREE.Mesh(
-          new THREE.PlaneGeometry(0.34, 0.34),
+          new THREE.PlaneGeometry(photoSize2, photoSize2),
           new THREE.MeshBasicMaterial({ map: productPhotoTexture(product.image_url), transparent:true, side: THREE.DoubleSide })
         ));
         photoPlane2.position.set(0, topY + dim.h + 0.08 + (Number(product.photo_offset_y) || 0), 0.5);
@@ -1846,10 +1861,12 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
 
       // vraie photo du produit (si une photo a été ajoutée), affichée
       // directement sur le rayon, entre les caisses et la pancarte texte ;
-      // photo_offset_y permet au commerçant d'ajuster la hauteur à la main.
+      // photo_offset_y permet au commerçant d'ajuster la hauteur à la main,
+      // photo_scale la taille (agrandir / réduire) de la photo affichée.
       if (product.image_url){
+        var photoSize = 0.46 * (Number(product.photo_scale) || 1);
         var photoPlane = tagged(new THREE.Mesh(
-          new THREE.PlaneGeometry(0.46, 0.46),
+          new THREE.PlaneGeometry(photoSize, photoSize),
           new THREE.MeshBasicMaterial({ map: productPhotoTexture(product.image_url), transparent:true, side: THREE.DoubleSide })
         ));
         photoPlane.position.set(0, rackH - 0.12 + (Number(product.photo_offset_y) || 0), rackD/2 + 0.05);
@@ -2298,7 +2315,10 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
           '<label>Position de la photo sur l\'emplacement (haut / bas)' +
             '<input type="range" id="bo-e-photo-offset" min="-0.5" max="0.5" step="0.02" value="' + (Number(p.photo_offset_y) || 0) + '">' +
           '</label>' +
-          '<div class="sub" style="margin-top:-6px; font-size:.74rem">Ajuste et regarde la scène 3D derrière ce panneau : la photo bouge en direct.</div>'
+          '<label>Taille de la photo (agrandir / réduire)' +
+            '<input type="range" id="bo-e-photo-scale" min="0.4" max="2.5" step="0.05" value="' + (Number(p.photo_scale) || 1) + '">' +
+          '</label>' +
+          '<div class="sub" style="margin-top:-6px; font-size:.74rem">Ajuste et regarde la scène 3D derrière ce panneau : la photo bouge/change de taille en direct.</div>'
         : '') +
         '<div style="display:flex; align-items:center; gap:8px; margin-top:-2px">' +
           '<span class="pill" id="bo-btn-move-earlier"' + (posIdx <= 0 ? ' style="opacity:.35; pointer-events:none"' : '') + '>◀ Plus tôt</span>' +
@@ -2325,6 +2345,22 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
         // au relâchement du curseur : on enregistre la position choisie.
         photoOffsetInput.addEventListener("change", function(){
           client.from("products").update({ photo_offset_y: parseFloat(this.value) || 0 }).eq("id", p.id)
+            .then(function(res2){ if (res2.error) throw res2.error; })
+            .catch(function(err){ panelMsg(translateError(err), "error"); });
+        });
+      }
+
+      var photoScaleInput = document.getElementById("bo-e-photo-scale");
+      if (photoScaleInput){
+        // en direct pendant qu'on glisse le curseur : juste un aperçu, rien
+        // n'est encore enregistré en base.
+        photoScaleInput.addEventListener("input", function(){
+          p.photo_scale = parseFloat(this.value) || 1;
+          rerenderProductSlot(p);
+        });
+        // au relâchement du curseur : on enregistre la taille choisie.
+        photoScaleInput.addEventListener("change", function(){
+          client.from("products").update({ photo_scale: parseFloat(this.value) || 1 }).eq("id", p.id)
             .then(function(res2){ if (res2.error) throw res2.error; })
             .catch(function(err){ panelMsg(translateError(err), "error"); });
         });
