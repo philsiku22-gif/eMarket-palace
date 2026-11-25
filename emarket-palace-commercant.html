@@ -2009,7 +2009,7 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
             '<button type="button" id="bo-btn-search-online" class="pill" style="white-space:nowrap; padding:10px 12px">🔎 Chercher en ligne</button>' +
           '</div>' +
         '</label>' +
-        '<div class="sub" style="margin-top:-6px; font-size:.74rem">Tape le nom puis clique : Google en mode IA te résume le produit s\'il existe déjà en ligne (marque, modèle, caractéristiques à reprendre).</div>' +
+        '<div class="sub" style="margin-top:-6px; font-size:.74rem">Ajoute la photo ci-dessous puis clique : Google cherche le produit à partir de la photo. Sans photo, tape juste le nom et clique.</div>' +
         '<label>Photo du produit <input type="file" id="bo-p-image" accept="image/*"></label>' +
         '<div id="bo-img-preview" class="hidden"></div>' +
         '<label>Prix ($) <input type="number" id="bo-p-price" min="0" step="0.01" placeholder="25"></label>' +
@@ -2033,22 +2033,50 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
 
       var imgInput = document.getElementById("bo-p-image");
       var imgPreview = document.getElementById("bo-img-preview");
+      var btnSearchOnline = document.getElementById("bo-btn-search-online");
+      var btnSearchDefaultLabel = btnSearchOnline.textContent;
+      // URL publique de la photo choisie, une fois envoyée vers le bucket
+      // product-images (nécessaire pour que Google Lens puisse l'analyser :
+      // il lui faut une image accessible en ligne, pas un fichier local).
+      var photoSearchUrl = null;
       imgInput.addEventListener("change", function(){
         var file = imgInput.files && imgInput.files[0];
+        photoSearchUrl = null;
+        btnSearchOnline.textContent = btnSearchDefaultLabel;
         if (!file){ imgPreview.classList.add("hidden"); imgPreview.innerHTML = ""; return; }
         var url = URL.createObjectURL(file);
         imgPreview.innerHTML = '<img src="' + url + '">';
         imgPreview.classList.remove("hidden");
+
+        // envoi discret de la photo vers le stockage public, pour pouvoir
+        // ensuite la soumettre à la recherche par image Google.
+        btnSearchOnline.disabled = true;
+        btnSearchOnline.textContent = "Analyse de la photo...";
+        uploadProductImage(file).then(function(publicUrl){
+          photoSearchUrl = publicUrl;
+          btnSearchOnline.disabled = false;
+          btnSearchOnline.textContent = "📷 Chercher avec la photo";
+        }).catch(function(){
+          // upload impossible (connexion, etc.) : on retombe simplement
+          // sur la recherche par nom tapé.
+          btnSearchOnline.disabled = false;
+          btnSearchOnline.textContent = btnSearchDefaultLabel;
+        });
       });
 
-      // recherche en ligne : ouvre Google en mode IA (udm=50) sur le nom
-      // tapé, pour que le commerçant obtienne directement un résumé des
-      // caractéristiques du produit (marque, modèle, puissance...) s'il
-      // existe déjà en ligne, sans avoir à éplucher plusieurs pages.
-      document.getElementById("bo-btn-search-online").addEventListener("click", function(){
+      // recherche en ligne : si une photo a été choisie et envoyée, on
+      // lance une vraie recherche par image (Google Lens) pour identifier
+      // le produit directement depuis sa photo ; sinon on cherche le nom
+      // tapé via Google en mode IA (udm=50), qui résume le produit s'il
+      // existe déjà en ligne (marque, modèle, caractéristiques).
+      btnSearchOnline.addEventListener("click", function(){
+        if (photoSearchUrl){
+          window.open("https://lens.google.com/uploadbyurl?url=" + encodeURIComponent(photoSearchUrl), "_blank", "noopener");
+          return;
+        }
         var q = document.getElementById("bo-p-title").value.trim();
         if (!q){
-          panelMsg("Écris d'abord le nom du produit pour pouvoir le chercher en ligne.", "error");
+          panelMsg("Ajoute une photo, ou écris d'abord le nom du produit, pour pouvoir le chercher en ligne.", "error");
           return;
         }
         window.open("https://www.google.com/search?udm=50&q=" + encodeURIComponent(q), "_blank", "noopener");
