@@ -208,8 +208,8 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
     <div id="panel-products">
       <div class="sub" id="bo-hint">
         Déplace-toi dans ton arrière-boutique (flèches / ZQSD ou WASD, glisser pour regarder autour) &middot;
-        clic sur une étagère = la sélectionner &middot; double-clic = voir la fiche produit &middot;
-        clic droit = la gérer (stock, prix, photo, vitrine, suppression) &middot; comptoir vert = ajouter un produit.
+        clic sur une étagère = la sélectionner &middot; double-clic ou clic droit =
+        la gérer (stock, prix, photo, vitrine, suppression) &middot; comptoir vert = ajouter un produit.
       </div>
       <div id="bo-viewport">
         <div id="bo-canvas-wrap"></div>
@@ -218,7 +218,7 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
           <h3 id="bo-hud-title">Arrière-boutique</h3>
           <div class="s" id="bo-hud-sub">Chargement...</div>
         </div>
-        <div id="bo-tip">Clic = sélectionner &middot; double-clic = fiche produit &middot; clic droit = gérer</div>
+        <div id="bo-tip">Clic = sélectionner &middot; double-clic ou clic droit = gérer</div>
         <div id="bo-dpad">
           <span></span><button id="bo-dp-up">▲</button><span></span>
           <button id="bo-dp-left">◀</button><span></span><button id="bo-dp-right">▶</button>
@@ -1072,7 +1072,7 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
       function deselectHit(){
         selectedHit = null;
         selectionHighlight.visible = false;
-        document.getElementById("bo-tip").textContent = "Clic = sélectionner · double-clic = fiche produit · clic droit = gérer";
+        document.getElementById("bo-tip").textContent = "Clic = sélectionner · double-clic ou clic droit = gérer (stock, prix, photo...)";
       }
 
       renderer.domElement.addEventListener("pointerdown", function(ev){ downPos = { x: ev.clientX, y: ev.clientY }; });
@@ -1091,7 +1091,7 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
         var hit = hitFromEvent(ev);
         if (!hit) return;
         if (hit.kind === "add") openAddProductPanel(hit.prefill);
-        else openProductDetailPanel(hit.product);
+        else openEditProductPanel(hit.product);
       });
       renderer.domElement.addEventListener("contextmenu", function(ev){
         ev.preventDefault();
