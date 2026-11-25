@@ -2310,8 +2310,8 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
         '<div id="bo-panel-msg"></div>' +
         (p.image_url ?
           '<div style="min-height:150px; display:flex; align-items:center; justify-content:center; background:#20190f; border-radius:9px; padding:14px 0">' +
-            '<div id="bo-img-resize-wrap" style="position:relative; display:inline-block; touch-action:none">' +
-              '<img id="bo-img-resize-img" src="' + escapeHtml(p.image_url) + '" style="display:block; width:' + Math.round(100 * (Number(p.photo_scale) || 1)) + 'px; height:' + Math.round(100 * (Number(p.photo_scale) || 1)) + 'px; object-fit:cover; border-radius:9px; border:1px solid #352f27">' +
+            '<div id="bo-img-resize-wrap" style="position:relative; display:inline-block; max-width:100%; touch-action:none">' +
+              '<img id="bo-img-resize-img" src="' + escapeHtml(p.image_url) + '" style="display:block; max-width:100%; width:' + Math.min(280, Math.round(100 * (Number(p.photo_scale) || 1))) + 'px; height:' + Math.min(280, Math.round(100 * (Number(p.photo_scale) || 1))) + 'px; object-fit:cover; border-radius:9px; border:1px solid #352f27">' +
               '<div id="bo-img-resize-handle" style="position:absolute; right:-8px; bottom:-8px; width:18px; height:18px; border-radius:50%; background:#3fae84; border:2px solid #16242b; cursor:nwse-resize; touch-action:none"></div>' +
             '</div>' +
           '</div>' +
@@ -2365,7 +2365,7 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
         var onResizeMove = function(ev){
           if (!dragStart) return;
           var delta = ((ev.clientX - dragStart.x) + (ev.clientY - dragStart.y)) / 2;
-          var newSize = Math.max(40, Math.min(250, dragStart.size + delta));
+          var newSize = Math.max(40, Math.min(280, dragStart.size + delta));
           resizeImg.style.width = newSize + "px";
           resizeImg.style.height = newSize + "px";
           p.photo_scale = newSize / 100;
