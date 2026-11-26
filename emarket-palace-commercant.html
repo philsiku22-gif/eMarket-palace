@@ -1195,7 +1195,7 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
       if (delta.lengthSq() > 0){
         delta.normalize().multiplyScalar(speed);
         var next = camera.position.clone().add(delta);
-        if (next.x > -3.9 && next.x < 3.9 && next.z > -3.9 && next.z < 3.9){
+        if (next.x > -3.9 && next.x < 3.9 && next.z > -4.3 && next.z < 3.9){
           camera.position.add(delta);
           controls.target.add(delta);
         }
@@ -1757,9 +1757,9 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
       { index:0, x:-3.6, z:-2.0 },
       { index:1, x:-2.4, z:-2.0 },
       { index:2, x:-1.2, z:-2.0 },
-      { index:3, x:-3.6, z:-3.6 },
-      { index:4, x:-2.4, z:-3.6 },
-      { index:5, x:-1.2, z:-3.6 }
+      { index:3, x:-3.6, z:-3.3 },
+      { index:4, x:-2.4, z:-3.3 },
+      { index:5, x:-1.2, z:-3.3 }
     ];
 
     function buildShelfRackZone(){
