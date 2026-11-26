@@ -1186,7 +1186,7 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
       var dir = new THREE.Vector3();
       camera.getWorldDirection(dir);
       dir.y = 0; dir.normalize();
-      var right = new THREE.Vector3().crossVectors(dir, new THREE.Vector3(0,1,0)).normalize().negate();
+      var right = new THREE.Vector3().crossVectors(dir, new THREE.Vector3(0,1,0)).normalize();
       var delta = new THREE.Vector3();
       if (move.fwd) delta.add(dir);
       if (move.back) delta.sub(dir);
