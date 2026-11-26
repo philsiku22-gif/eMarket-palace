@@ -1724,14 +1724,22 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
 
       // photo_offset_y permet au commerçant d'ajuster la hauteur à la main,
       // photo_scale la taille (agrandir / réduire) de la photo affichée.
+      // La géométrie reste à taille fixe ; la taille réelle passe par
+      // mesh.scale, pour pouvoir être ajustée en direct (liveUpdateProductPhoto)
+      // sans reconstruire toute la scène à chaque mouvement du curseur.
       if (product.image_url){
-        var photoSize2 = 0.34 * (Number(product.photo_scale) || 1);
         var photoPlane2 = tagged(new THREE.Mesh(
-          new THREE.PlaneGeometry(photoSize2, photoSize2),
+          new THREE.PlaneGeometry(0.34, 0.34),
           new THREE.MeshBasicMaterial({ map: productPhotoTexture(product.image_url), transparent:true, side: THREE.DoubleSide })
         ));
-        photoPlane2.position.set(0, topY + dim.h + 0.08 + (Number(product.photo_offset_y) || 0), 0.5);
+        var scale2 = Number(product.photo_scale) || 1;
+        photoPlane2.scale.set(scale2, scale2, 1);
+        slot.photoBaseY = topY + dim.h + 0.08;
+        photoPlane2.position.set(0, slot.photoBaseY + (Number(product.photo_offset_y) || 0), 0.5);
         slot.group.add(photoPlane2);
+        slot.photoMesh = photoPlane2;
+      } else {
+        slot.photoMesh = null;
       }
 
       clickable.push({ mesh: hitbox2, kind: "edit", product: product });
@@ -1863,14 +1871,22 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
       // directement sur le rayon, entre les caisses et la pancarte texte ;
       // photo_offset_y permet au commerçant d'ajuster la hauteur à la main,
       // photo_scale la taille (agrandir / réduire) de la photo affichée.
+      // La géométrie reste à taille fixe ; la taille réelle passe par
+      // mesh.scale, pour pouvoir être ajustée en direct (liveUpdateProductPhoto)
+      // sans reconstruire toute la scène à chaque mouvement du curseur.
       if (product.image_url){
-        var photoSize = 0.46 * (Number(product.photo_scale) || 1);
         var photoPlane = tagged(new THREE.Mesh(
-          new THREE.PlaneGeometry(photoSize, photoSize),
+          new THREE.PlaneGeometry(0.46, 0.46),
           new THREE.MeshBasicMaterial({ map: productPhotoTexture(product.image_url), transparent:true, side: THREE.DoubleSide })
         ));
-        photoPlane.position.set(0, rackH - 0.12 + (Number(product.photo_offset_y) || 0), rackD/2 + 0.05);
+        var scale1 = Number(product.photo_scale) || 1;
+        photoPlane.scale.set(scale1, scale1, 1);
+        slot.photoBaseY = rackH - 0.12;
+        photoPlane.position.set(0, slot.photoBaseY + (Number(product.photo_offset_y) || 0), rackD/2 + 0.05);
         slot.group.add(photoPlane);
+        slot.photoMesh = photoPlane;
+      } else {
+        slot.photoMesh = null;
       }
 
       clickable.push({ mesh: hitbox, kind: "edit", product: product });
@@ -1995,7 +2011,7 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
     }
 
     // redessine juste l'emplacement d'un produit (sans tout rafraîchir),
-    // utilisé pour l'aperçu en direct du curseur de position de photo.
+    // utilisé après un vrai changement (nouvelle photo, etc.).
     function rerenderProductSlot(p){
       if (p.pallet_slot){
         var ps = palletSlots.find(function(s){ return s.key === p.pallet_slot; });
@@ -2004,6 +2020,26 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
         var ss = shelfSlots.find(function(s){ return s.index === p.shelf_slot; });
         if (ss) renderShelfSlot(ss, p);
       }
+    }
+
+    function findProductSlot(p){
+      if (p.pallet_slot) return palletSlots.find(function(s){ return s.key === p.pallet_slot; }) || null;
+      if (p.shelf_slot != null) return shelfSlots.find(function(s){ return s.index === p.shelf_slot; }) || null;
+      return null;
+    }
+
+    // aperçu en direct, pendant qu'on glisse le curseur de position ou la
+    // poignée de taille de la photo : au lieu de reconstruire tout
+    // l'emplacement (coûteux, appelé à chaque micro-mouvement de la souris),
+    // on déplace/redimensionne directement le mesh déjà affiché.
+    function liveUpdateProductPhoto(p){
+      var slot = findProductSlot(p);
+      if (!slot || !slot.photoMesh) return false;
+      var scale = Number(p.photo_scale) || 1;
+      var offsetY = Number(p.photo_offset_y) || 0;
+      slot.photoMesh.scale.set(scale, scale, 1);
+      slot.photoMesh.position.y = (slot.photoBaseY || 0) + offsetY;
+      return true;
     }
 
     function refreshBackoffice(){
@@ -2345,7 +2381,7 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
         // n'est encore enregistré en base.
         photoOffsetInput.addEventListener("input", function(){
           p.photo_offset_y = parseFloat(this.value) || 0;
-          rerenderProductSlot(p);
+          liveUpdateProductPhoto(p);
         });
         // au relâchement du curseur : on enregistre la position choisie.
         photoOffsetInput.addEventListener("change", function(){
@@ -2369,7 +2405,7 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
           resizeImg.style.width = newSize + "px";
           resizeImg.style.height = newSize + "px";
           p.photo_scale = newSize / 100;
-          rerenderProductSlot(p);
+          liveUpdateProductPhoto(p);
         };
         var onResizeUp = function(){
           if (!dragStart) return;
