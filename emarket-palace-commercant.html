@@ -2484,7 +2484,8 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
           '<span style="font-size:.72rem; color:#a69d8f; flex:1; text-align:center">Emplacement ' + (posIdx + 1) + ' / ' + posTotal + '</span>' +
           '<span class="pill" id="bo-btn-move-later"' + (posIdx >= posTotal - 1 ? ' style="opacity:.35; pointer-events:none"' : '') + '>Plus tard ▶</span>' +
         '</div>' +
-        '<div style="font-size:.85rem; color:#cfc8ba">' + (isNaN(Number(p.price)) ? "" : Number(p.price).toLocaleString("fr-FR") + " $") + '</div>' +
+        '<label>Prix ($) <input type="number" id="bo-e-price" min="0" step="0.01" value="' + (isNaN(Number(p.price)) ? "" : Number(p.price)) + '"></label>' +
+        '<button id="bo-btn-update-price">Mettre à jour le prix</button>' +
         '<label>Quantité en stock <input type="number" id="bo-e-stock" min="0" step="1" value="' + stock + '"></label>' +
         '<button id="bo-btn-update-stock">Mettre à jour le stock</button>' +
         '<div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:4px">' +
@@ -2567,6 +2568,28 @@ footer{font-size:.78rem; color:var(--muted); text-align:center}
               .catch(function(err){ panelMsg(translateError(err), "error"); });
           });
         });
+      });
+      document.getElementById("bo-btn-update-price").addEventListener("click", function(){
+        var btn = this;
+        var newPrice = parseFloat(document.getElementById("bo-e-price").value);
+        if (isNaN(newPrice) || newPrice < 0){
+          panelMsg("Entre un prix valide.", "error");
+          return;
+        }
+        if (newPrice === Number(p.price)){
+          panelMsg("Le prix est déjà à " + newPrice.toLocaleString("fr-FR") + " $.", "");
+          return;
+        }
+        btn.disabled = true;
+        client.from("products").update({ price: newPrice }).eq("id", p.id)
+          .then(function(res2){
+            if (res2.error) throw res2.error;
+            p.price = newPrice;
+            panelMsg("Prix mis à jour.", "ok");
+            rerenderProductSlot(p);
+          })
+          .catch(function(err){ panelMsg(translateError(err), "error"); })
+          .finally(function(){ btn.disabled = false; });
       });
       document.getElementById("bo-btn-update-stock").addEventListener("click", function(){
         var btn = this;
